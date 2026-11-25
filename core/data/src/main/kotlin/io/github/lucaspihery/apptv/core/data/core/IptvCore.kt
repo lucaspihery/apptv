@@ -4,9 +4,9 @@ import io.github.lucaspihery.apptv.core.data.account.AccountError
 import io.github.lucaspihery.apptv.core.data.account.XtreamLinkCredentials
 import io.github.lucaspihery.apptv.core.ffi.CoreException
 import io.github.lucaspihery.apptv.core.ffi.coreVersion
-import io.github.lucaspihery.apptv.core.ffi.detectXtreamLink
+import io.github.lucaspihery.apptv.core.ffi.detectXtreamLink as ffiDetectXtreamLink
 import io.github.lucaspihery.apptv.core.ffi.m3uProbe
-import io.github.lucaspihery.apptv.core.ffi.normalizeServer
+import io.github.lucaspihery.apptv.core.ffi.normalizeServer as ffiNormalizeServer
 import io.github.lucaspihery.apptv.core.ffi.xtreamAuthenticate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,7 +42,7 @@ interface IptvCore {
 class UniffiIptvCore @Inject constructor() : IptvCore {
     override fun version(): String = coreVersion()
 
-    override fun normalizeServer(input: String) = call { normalizeServer(input) }
+    override fun normalizeServer(input: String): CoreResult<String> = call { ffiNormalizeServer(input) }
 
     override fun xtreamLogin(server: String, username: String, password: String) = call {
         val info = xtreamAuthenticate(server, username, password)
@@ -60,7 +60,7 @@ class UniffiIptvCore @Inject constructor() : IptvCore {
     }
 
     override fun detectXtreamLink(url: String): XtreamLinkCredentials? =
-        detectXtreamLink(url)?.let { XtreamLinkCredentials(it.server, it.username, it.password) }
+        ffiDetectXtreamLink(url)?.let { XtreamLinkCredentials(it.server, it.username, it.password) }
 
     private inline fun <T> call(block: () -> T): CoreResult<T> = try {
         CoreResult.Ok(block())
@@ -71,11 +71,11 @@ class UniffiIptvCore @Inject constructor() : IptvCore {
 
 /** Conversion des erreurs Rust (déjà expurgées de tout secret). */
 fun CoreException.toAccountError(): AccountError = when (this) {
-    is CoreException.InvalidInput -> AccountError.InvalidInput(this.`message`)
-    is CoreException.Network -> AccountError.Network(this.`message`)
+    is CoreException.InvalidInput -> AccountError.InvalidInput(this.detail)
+    is CoreException.Network -> AccountError.Network(this.detail)
     is CoreException.Timeout -> AccountError.Timeout
     is CoreException.Http -> AccountError.Http(this.status.toInt())
     is CoreException.AuthFailed -> AccountError.AuthFailed
     is CoreException.AccountInactive -> AccountError.AccountInactive(this.status)
-    is CoreException.InvalidResponse -> AccountError.InvalidResponse(this.`message`)
+    is CoreException.InvalidResponse -> AccountError.InvalidResponse(this.detail)
 }

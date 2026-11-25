@@ -101,11 +101,11 @@ pub fn detect_xtream_link(url: String) -> Option<XtreamLink> {
 
 pub(crate) fn probe_with(http: &dyn HttpClient, raw_url: &str) -> CoreResult<M3uSummary> {
     let parsed = url::Url::parse(raw_url.trim()).map_err(|_| CoreError::InvalidInput {
-        message: "lien M3U illisible".to_owned(),
+        detail: "lien M3U illisible".to_owned(),
     })?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(CoreError::InvalidInput {
-            message: "seuls les liens http et https sont acceptés".to_owned(),
+            detail: "seuls les liens http et https sont acceptés".to_owned(),
         });
     }
     // Les liens M3U contiennent souvent des identifiants (chemin ou paramètres).
@@ -141,14 +141,14 @@ pub(crate) fn probe_with(http: &dyn HttpClient, raw_url: &str) -> CoreResult<M3u
         },
     )
     .map_err(|e| match e {
-        CoreError::Network { message } => CoreError::Network {
-            message: scrub(&message, &secrets),
+        CoreError::Network { detail } => CoreError::Network {
+            detail: scrub(&detail, &secrets),
         },
         other => other,
     })?;
     if entry_count == 0 {
         return Err(CoreError::InvalidResponse {
-            message: "la playlist ne contient aucune chaîne".to_owned(),
+            detail: "la playlist ne contient aucune chaîne".to_owned(),
         });
     }
     Ok(M3uSummary {

@@ -33,7 +33,8 @@ bibliothèque native).
 - **Lecture vidéo : Media3 ExoPlayer uniquement** (jalon 3). Rust ne lit jamais la vidéo.
 - Rust compilé pour `arm64-v8a`, `armeabi-v7a` (beaucoup de TV sont en 32 bits) et `x86_64`
   (émulateur). Profil release : `opt-level = "s"`, LTO, `panic = "abort"`, strip.
-- minSdk 23, **targetSdk 36** (choix de Lucas, pour pouvoir publier sur Play), compileSdk 36.
+- minSdk 24 (exigé par Navigation 2.10), **targetSdk 36** (choix de Lucas, pour pouvoir publier sur Play),
+  compileSdk 37 (exigé par Compose 1.12).
 - AGP 9 (Kotlin intégré à AGP) ; le plugin Compose est en version Kotlin 2.4.x.
 
 ## Décisions et pièges à respecter

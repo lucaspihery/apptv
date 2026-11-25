@@ -43,7 +43,7 @@ pub fn parse<R: BufRead>(
         let n = reader
             .read_until(b'\n', &mut line)
             .map_err(|e| CoreError::Network {
-                message: e.kind().to_string(),
+                detail: e.kind().to_string(),
             })?;
         if n == 0 {
             break;
@@ -55,7 +55,7 @@ pub fn parse<R: BufRead>(
             first = false;
             if !t.is_empty() && !t.starts_with('#') && t.starts_with('<') {
                 return Err(CoreError::InvalidResponse {
-                    message: "le lien renvoie une page HTML, pas une playlist M3U".to_owned(),
+                    detail: "le lien renvoie une page HTML, pas une playlist M3U".to_owned(),
                 });
             }
         }
@@ -93,7 +93,7 @@ pub fn parse<R: BufRead>(
     }
     if !saw_header && first {
         return Err(CoreError::InvalidResponse {
-            message: "playlist vide".to_owned(),
+            detail: "playlist vide".to_owned(),
         });
     }
     Ok(header)

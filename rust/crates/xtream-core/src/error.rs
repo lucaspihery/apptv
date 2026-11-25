@@ -6,11 +6,11 @@
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, uniffi::Error)]
 pub enum CoreError {
     /// Saisie invalide (adresse du serveur, identifiant vide…).
-    #[error("saisie invalide : {message}")]
-    InvalidInput { message: String },
+    #[error("saisie invalide : {detail}")]
+    InvalidInput { detail: String },
     /// Hôte introuvable, connexion refusée, TLS…
-    #[error("erreur réseau : {message}")]
-    Network { message: String },
+    #[error("erreur réseau : {detail}")]
+    Network { detail: String },
     #[error("délai dépassé")]
     Timeout,
     /// Réponse HTTP non 2xx.
@@ -23,8 +23,8 @@ pub enum CoreError {
     #[error("compte inactif ({status})")]
     AccountInactive { status: String },
     /// Le serveur a répondu, mais pas dans un format exploitable.
-    #[error("réponse inattendue : {message}")]
-    InvalidResponse { message: String },
+    #[error("réponse inattendue : {detail}")]
+    InvalidResponse { detail: String },
 }
 
 pub type CoreResult<T> = Result<T, CoreError>;

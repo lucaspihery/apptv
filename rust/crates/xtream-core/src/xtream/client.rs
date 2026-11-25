@@ -44,7 +44,7 @@ impl XtreamClient {
             .take(limit)
             .read_to_end(&mut buf)
             .map_err(|e| CoreError::Network {
-                message: crate::secret::scrub(&e.to_string(), &secrets),
+                detail: crate::secret::scrub(&e.to_string(), &secrets),
             })?;
         Ok(buf)
     }
@@ -59,7 +59,7 @@ pub(crate) fn parse_auth(body: &[u8], fallback_username: &str) -> CoreResult<Acc
     }
     let raw: RawAuthResponse =
         serde_json::from_slice(trimmed).map_err(|_| CoreError::InvalidResponse {
-            message: if trimmed.first() == Some(&b'<') {
+            detail: if trimmed.first() == Some(&b'<') {
                 "le serveur a renvoyé une page HTML au lieu de JSON".to_owned()
             } else {
                 "JSON illisible".to_owned()

@@ -87,7 +87,7 @@ abstract class CargoNdkTask : DefaultTask() {
         val args = buildList {
             add("ndk")
             abis.get().forEach { add("-t"); add(it) }
-            add("-P"); add("23")
+            add("-P"); add("24")
             add("-o"); add(out.absolutePath)
             add("build"); add("--release"); add("-p"); add("xtream-core")
         }
