@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bannière Android TV 320×180 dp : dégradé et halos rappelant le thème verre. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:pathData="M0,0h320v180h-320z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="320" android:endY="180"
+                android:startColor="#FF0A0F24" android:endColor="#FF1A1440" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M60,40m-90,0a90,90 0,1 1,180 0a90,90 0,1 1,-180 0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="60" android:centerY="40" android:gradientRadius="90"
+                android:startColor="#994C8DFF" android:endColor="#004C8DFF" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M270,150m-80,0a80,80 0,1 1,160 0a80,80 0,1 1,-160 0">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="270" android:centerY="150" android:gradientRadius="80"
+                android:startColor="#998A5CFF" android:endColor="#008A5CFF" />
+        </aapt:attr>
+    </path>
+    <!-- Panneau de verre -->
+    <path android:fillColor="#22FFFFFF" android:strokeColor="#66FFFFFF" android:strokeWidth="1.5"
+        android:pathData="M64,52h192a20,20 0,0 1,20 20v36a20,20 0,0 1,-20 20h-192a20,20 0,0 1,-20 -20v-36a20,20 0,0 1,20 -20z" />
+    <!-- Symbole lecture -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M78,74l22,16l-22,16z" />
+    <!-- « AppTV » en traits simples -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M118,106l12,-32l12,32M123,94h14M152,106v-32h9a8,8 0,0 1,0 16h-9M178,106v-32h9a8,8 0,0 1,0 16h-9M202,74h22M213,74v32M232,74l11,32l11,-32" />
+</vector>

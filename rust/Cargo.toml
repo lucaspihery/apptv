@@ -1,0 +1,31 @@
+[workspace]
+resolver = "3"
+members = ["crates/xtream-core", "crates/uniffi-bindgen"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+uniffi = "0.32.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+ureq = { version = "3.5.2", default-features = false, features = ["rustls", "gzip"] }
+thiserror = "2.0.21"
+url = "2.5.9"
+percent-encoding = "2.3.2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Optimisé pour la taille : la TV a peu de RAM et de stockage.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
