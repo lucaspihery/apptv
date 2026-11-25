@@ -1,0 +1,13 @@
+{
+  "user_info": {
+    "username": null,
+    "auth": "1",
+    "status": "Active",
+    "exp_date": null,
+    "is_trial": "1",
+    "active_cons": null,
+    "max_connections": "",
+    "allowed_output_formats": null
+  },
+  "server_info": []
+}
