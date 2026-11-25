@@ -1,0 +1,10 @@
+<resources>
+    <!-- Fond sombre neutre au lancement. Pendant la lecture vidéo (jalon 3), le fond de la
+         fenêtre sera vidé pour ne rien dessiner d'opaque sous la SurfaceView (piège TCL). -->
+    <style name="Theme.Apptv" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:colorBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
