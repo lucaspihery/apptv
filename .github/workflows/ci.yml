@@ -52,6 +52,14 @@ jobs:
           echo "NDK : ${ANDROID_NDK_LATEST_HOME}"
       - name: Build, tests unitaires, lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest --stacktrace
+      - name: Aperçus des écrans (1920 × 1080)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apercus-ecrans
+          path: feature/live/build/previews/*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Rapports de tests
         if: failure()
         uses: actions/upload-artifact@v4
