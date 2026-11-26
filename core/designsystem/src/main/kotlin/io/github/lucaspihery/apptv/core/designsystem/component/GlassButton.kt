@@ -38,11 +38,20 @@ fun GlassClickable(
     focusedScale: Float = GlassMotion.FOCUSED_SCALE,
     /** Halo au focus. À couper dans les longues listes : l'ombre colorée coûte cher sur une TV modeste. */
     focusedGlow: Boolean = true,
+    /**
+     * Discret : rien n'est dessiné au repos (ni fond ni bordure), seulement au focus ou si
+     * sélectionné. Pour les listes et les icônes, afin de ne pas aligner des cadres partout.
+     */
+    quiet: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val p = Glass.palette
     val accent = p.accent.color
-    val idleFill = if (selected) accent.copy(alpha = 0.28f) else p.panelFill
+    val idleFill = when {
+        selected -> accent.copy(alpha = if (quiet) 0.16f else 0.28f)
+        quiet -> Color.Transparent
+        else -> p.panelFill
+    }
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
@@ -61,7 +70,7 @@ fun GlassClickable(
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = focusedScale),
         border = ClickableSurfaceDefaults.border(
-            border = Border(specularBorder(p), shape = shape),
+            border = if (quiet) Border.None else Border(specularBorder(p), shape = shape),
             focusedBorder = Border(BorderStroke(2.dp, accent.copy(alpha = 0.95f)), shape = shape),
             pressedBorder = Border(BorderStroke(2.dp, accent), shape = shape),
         ),
