@@ -16,7 +16,9 @@ import org.junit.Assert.assertTrue
 import io.github.lucaspihery.apptv.core.data.live.EpgRepository
 import io.github.lucaspihery.apptv.core.data.live.FavoritesRepository
 import io.github.lucaspihery.apptv.core.data.live.Program
+import io.github.lucaspihery.apptv.core.data.live.StreamQuality
 import io.github.lucaspihery.apptv.core.data.live.VirtualCategories
+import io.github.lucaspihery.apptv.core.data.live.WatchHistoryRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -46,15 +48,30 @@ class ChannelsViewModelTest {
         }
     }
 
+    private class FakeHistory : WatchHistoryRepository {
+        override val history = MutableStateFlow<List<String>>(emptyList())
+        override val qualities = MutableStateFlow<Map<String, StreamQuality>>(emptyMap())
+        override suspend fun recordWatched(channel: LiveChannel) {
+            history.value = listOf(channel.key) + (history.value - channel.key)
+        }
+        override suspend fun recordQuality(channel: LiveChannel, quality: StreamQuality) {
+            qualities.value = qualities.value + (channel.key to quality)
+        }
+        override suspend fun clearHistory() {
+            history.value = emptyList()
+        }
+    }
+
     private object NoEpg : EpgRepository {
         override fun cached(channel: LiveChannel, minCount: Int): List<Program>? = null
         override suspend fun programs(channel: LiveChannel, minCount: Int): List<Program> = emptyList()
     }
 
     private val favorites = FakeFavorites()
+    private val history = FakeHistory()
 
     private fun vm(live: LiveRepository) =
-        ChannelsViewModel(live, FakeAccountRepository(), favorites, NoEpg, main.dispatcher, settleMs = 250)
+        ChannelsViewModel(live, FakeAccountRepository(), favorites, history, NoEpg, main.dispatcher, settleMs = 250)
 
     @Test
     fun `recherche sans accents ni casse`() = runTest(main.dispatcher) {
@@ -68,6 +85,32 @@ class ChannelsViewModelTest {
         assertEquals(listOf("Foot"), vm.state.value.channels.map { it.name })
         // Lecture d'un résultat : on zappe ensuite dans toutes les chaînes.
         assertEquals(null to 2, vm.playTarget(0))
+    }
+
+    @Test
+    fun `historique dans l'ordre de visionnage, effaçable`() = runTest(main.dispatcher) {
+        val vm = vm(FakeLive(CoreResult.Ok(catalog)))
+        vm.selectCategory(VirtualCategories.HISTORY)
+        assertEquals("Historique", vm.state.value.selectedCategoryName)
+        assertTrue(vm.state.value.channels.isEmpty())
+        history.recordWatched(catalog.channels[0])
+        history.recordWatched(catalog.channels[2])
+        advanceTimeBy(1)
+        assertEquals(listOf("Foot", "TF1"), vm.state.value.channels.map { it.name })
+        // La chaîne lancée remonte en tête : retour du lecteur sur la première ligne.
+        assertEquals(VirtualCategories.HISTORY to 1, vm.playTarget(1))
+        assertEquals(0, vm.lastPlayedIndex(VirtualCategories.HISTORY))
+        vm.clearHistory()
+        advanceTimeBy(1)
+        assertTrue(vm.state.value.channels.isEmpty())
+    }
+
+    @Test
+    fun `qualité mesurée transmise à la liste`() = runTest(main.dispatcher) {
+        val vm = vm(FakeLive(CoreResult.Ok(catalog)))
+        history.recordQuality(catalog.channels[1], StreamQuality(1080, 50, measured = true))
+        advanceTimeBy(1)
+        assertEquals("50 fps", vm.state.value.qualities[catalog.channels[1].key]?.fpsLabel)
     }
 
     @Test

@@ -39,6 +39,9 @@ data class Program(val title: String, val description: String?, val start: Long,
 object VirtualCategories {
     /** « Mes chaînes » : les favoris. */
     const val FAVORITES = "@fav"
+
+    /** « Historique » : chaînes regardées, la plus récente en premier. */
+    const val HISTORY = "@hist"
 }
 
 data class LiveCatalog(val categories: List<LiveCategory>, val channels: List<LiveChannel>) {
@@ -46,7 +49,20 @@ data class LiveCatalog(val categories: List<LiveCategory>, val channels: List<Li
     fun channelsOf(categoryId: String?): List<LiveChannel> =
         if (categoryId == null) channels else channels.filter { it.categoryId == categoryId }
 
-    /** Liste de zapping : une catégorie, toutes les chaînes, ou les favoris. */
-    fun playlist(categoryId: String?, favorites: Set<String>): List<LiveChannel> =
-        if (categoryId == VirtualCategories.FAVORITES) channels.filter { it.key in favorites } else channelsOf(categoryId)
+    /** Liste de zapping : une catégorie, toutes les chaînes, les favoris ou l'historique. */
+    fun playlist(categoryId: String?, favorites: Set<String>, history: List<String> = emptyList()): List<LiveChannel> =
+        when (categoryId) {
+            VirtualCategories.FAVORITES -> channels.filter { it.key in favorites }
+            VirtualCategories.HISTORY -> historyChannels(history)
+            else -> channelsOf(categoryId)
+        }
+
+    /** Chaînes de l'historique dans son ordre ; celles disparues du catalogue sont ignorées. */
+    fun historyChannels(history: List<String>): List<LiveChannel> {
+        if (history.isEmpty()) return emptyList()
+        val byKey = HashMap<String, LiveChannel>(history.size * 2)
+        val wanted = history.toHashSet()
+        for (c in channels) if (c.key in wanted) byKey.putIfAbsent(c.key, c)
+        return history.mapNotNull { byKey[it] }
+    }
 }

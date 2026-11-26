@@ -134,6 +134,7 @@ internal fun PlayerBanner(state: PlayerUiState) {
                 Text(it.toString(), style = MaterialTheme.typography.headlineMedium, color = Color.White.copy(alpha = 0.7f))
             }
             Text(state.channel?.name.orEmpty(), style = MaterialTheme.typography.headlineMedium, color = Color.White)
+            QualityBadges(state.quality)
         }
         val now = System.currentTimeMillis() / 1000
         val current = state.programs.firstOrNull { it.end > now }
