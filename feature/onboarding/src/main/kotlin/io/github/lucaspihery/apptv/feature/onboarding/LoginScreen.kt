@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -73,17 +76,19 @@ fun LoginScreen(
     val firstField = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { firstField.requestFocus() } }
 
+    // Deux colonnes : sur un écran 960×540 dp, une seule colonne dépassait du panneau
+    // et masquait le bouton « Se connecter ».
     GlassBackground {
-        Box(Modifier.overscanPadding().fillMaxWidth(), contentAlignment = Alignment.Center) {
-            GlassPanel(Modifier.width(640.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("Connexion", style = MaterialTheme.typography.displaySmall, color = p.content)
-                    Text(
-                        "Vos identifiants restent sur cette TV, chiffrés.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = p.contentMuted,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.fillMaxSize().overscanPadding(), contentAlignment = Alignment.Center) {
+            GlassPanel(Modifier.fillMaxWidth()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+                    Column(Modifier.width(280.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Connexion", style = MaterialTheme.typography.displaySmall, color = p.content)
+                        Text(
+                            "Vos identifiants restent sur cette TV, chiffrés.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = p.contentMuted,
+                        )
                         GlassButton(
                             text = "Xtream Codes",
                             onClick = { onModeChange(LoginMode.XTREAM) },
@@ -97,66 +102,71 @@ fun LoginScreen(
                             modifier = Modifier.testTag(LoginTags.MODE_M3U),
                         )
                     }
-                    when (state.mode) {
-                        LoginMode.XTREAM -> {
-                            GlassTextField(
-                                value = state.server,
-                                onValueChange = onServerChange,
-                                label = "Serveur",
-                                placeholder = "http://exemple.tv:8080",
-                                keyboardType = KeyboardType.Uri,
-                                modifier = Modifier.fillMaxWidth().focusRequester(firstField).testTag(LoginTags.SERVER),
-                            )
-                            GlassTextField(
-                                value = state.username,
-                                onValueChange = onUsernameChange,
-                                label = "Identifiant",
-                                modifier = Modifier.fillMaxWidth().testTag(LoginTags.USERNAME),
-                            )
-                            GlassTextField(
-                                value = state.password,
-                                onValueChange = onPasswordChange,
-                                label = "Mot de passe",
-                                isPassword = true,
-                                imeAction = ImeAction.Done,
-                                modifier = Modifier.fillMaxWidth().testTag(LoginTags.PASSWORD),
-                            )
-                        }
-                        LoginMode.M3U -> {
-                            GlassTextField(
-                                value = state.m3uUrl,
-                                onValueChange = onM3uUrlChange,
-                                label = "Lien de la playlist M3U",
-                                placeholder = "http://…/playlist.m3u",
-                                keyboardType = KeyboardType.Uri,
-                                imeAction = ImeAction.Done,
-                                modifier = Modifier.fillMaxWidth().focusRequester(firstField).testTag(LoginTags.M3U_URL),
-                            )
-                            if (state.xtreamLinkDetected) {
-                                Text(
-                                    "Ce lien correspond à un compte Xtream : la connexion Xtream donne accès aux catégories, à l'EPG et à la VOD.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = p.contentMuted,
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        when (state.mode) {
+                            LoginMode.XTREAM -> {
+                                GlassTextField(
+                                    value = state.server,
+                                    onValueChange = onServerChange,
+                                    label = "Serveur",
+                                    placeholder = "http://exemple.tv:8080",
+                                    keyboardType = KeyboardType.Uri,
+                                    modifier = Modifier.fillMaxWidth().focusRequester(firstField).testTag(LoginTags.SERVER),
                                 )
-                                GlassButton(text = "Utiliser la connexion Xtream", onClick = onUseXtreamLink)
+                                GlassTextField(
+                                    value = state.username,
+                                    onValueChange = onUsernameChange,
+                                    label = "Identifiant",
+                                    modifier = Modifier.fillMaxWidth().testTag(LoginTags.USERNAME),
+                                )
+                                GlassTextField(
+                                    value = state.password,
+                                    onValueChange = onPasswordChange,
+                                    label = "Mot de passe",
+                                    isPassword = true,
+                                    imeAction = ImeAction.Done,
+                                    modifier = Modifier.fillMaxWidth().testTag(LoginTags.PASSWORD),
+                                )
+                            }
+                            LoginMode.M3U -> {
+                                GlassTextField(
+                                    value = state.m3uUrl,
+                                    onValueChange = onM3uUrlChange,
+                                    label = "Lien de la playlist M3U",
+                                    placeholder = "http://…/playlist.m3u",
+                                    keyboardType = KeyboardType.Uri,
+                                    imeAction = ImeAction.Done,
+                                    modifier = Modifier.fillMaxWidth().focusRequester(firstField).testTag(LoginTags.M3U_URL),
+                                )
+                                if (state.xtreamLinkDetected) {
+                                    Text(
+                                        "Ce lien correspond à un compte Xtream : la connexion Xtream donne accès aux catégories, à l'EPG et à la VOD.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = p.contentMuted,
+                                    )
+                                    GlassButton(text = "Utiliser la connexion Xtream", onClick = onUseXtreamLink)
+                                }
                             }
                         }
-                    }
-                    state.error?.let {
-                        Text(
-                            it.userMessage(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = p.error,
-                            modifier = Modifier.testTag(LoginTags.ERROR),
+                        state.error?.let {
+                            Text(
+                                it.userMessage(),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = p.error,
+                                modifier = Modifier.testTag(LoginTags.ERROR),
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        GlassButton(
+                            text = if (state.loading) "Connexion…" else "Se connecter",
+                            onClick = onSubmit,
+                            enabled = state.canSubmit,
+                            modifier = Modifier.testTag(LoginTags.SUBMIT),
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
-                    GlassButton(
-                        text = if (state.loading) "Connexion…" else "Se connecter",
-                        onClick = onSubmit,
-                        enabled = state.canSubmit,
-                        modifier = Modifier.testTag(LoginTags.SUBMIT),
-                    )
                 }
             }
         }

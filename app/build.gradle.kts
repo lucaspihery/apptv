@@ -33,6 +33,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:onboarding"))
+    implementation(project(":feature:live"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

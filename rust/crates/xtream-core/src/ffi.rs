@@ -8,9 +8,10 @@ use std::io::{BufReader, Read};
 
 use crate::error::{CoreError, CoreResult};
 use crate::http::{HttpClient, UreqHttp};
+use crate::live::LiveCatalog;
 use crate::m3u;
 use crate::secret::{SensitiveUrl, scrub};
-use crate::xtream::{AccountInfo, Credentials, ServerBase, XtreamClient};
+use crate::xtream::{AccountInfo, Credentials, ServerBase, XtreamClient, urls};
 
 /// Version du cœur (affichée dans les réglages, utile pour les rapports de bug).
 #[uniffi::export]
@@ -99,7 +100,47 @@ pub fn detect_xtream_link(url: String) -> Option<XtreamLink> {
     })
 }
 
-pub(crate) fn probe_with(http: &dyn HttpClient, raw_url: &str) -> CoreResult<M3uSummary> {
+/// Catalogue du direct d'un compte Xtream (catégories + chaînes, sans identifiants).
+#[uniffi::export]
+pub fn xtream_live_catalog(
+    server: String,
+    username: String,
+    password: String,
+) -> CoreResult<LiveCatalog> {
+    let creds = Credentials::new(&server, &username, &password)?;
+    XtreamClient::new(creds, UreqHttp::shared()).live_catalog()
+}
+
+/// URL de lecture d'une chaîne Xtream. Contient le mot de passe : à passer
+/// directement au lecteur, jamais à un log.
+#[uniffi::export]
+pub fn xtream_live_url(
+    server: String,
+    username: String,
+    password: String,
+    stream_id: i64,
+    ext: String,
+) -> CoreResult<String> {
+    let creds = Credentials::new(&server, &username, &password)?;
+    Ok(
+        urls::stream_url(&creds, urls::StreamKind::Live, stream_id, &ext)
+            .expose()
+            .to_owned(),
+    )
+}
+
+/// Catalogue du direct d'une playlist M3U (une catégorie par groupe), lu en flux.
+#[uniffi::export]
+pub fn m3u_live_catalog(url: String) -> CoreResult<LiveCatalog> {
+    crate::live::m3u_catalog(&*UreqHttp::shared(), &url)
+}
+
+/// Ouvre une playlist M3U : vérifie le lien et renvoie le corps de la réponse,
+/// avec les valeurs à masquer dans les messages d'erreur.
+pub(crate) fn open_playlist(
+    http: &dyn HttpClient,
+    raw_url: &str,
+) -> CoreResult<(Box<dyn Read + Send>, Vec<String>)> {
     let parsed = url::Url::parse(raw_url.trim()).map_err(|_| CoreError::InvalidInput {
         detail: "lien M3U illisible".to_owned(),
     })?;
@@ -129,10 +170,16 @@ pub(crate) fn probe_with(http: &dyn HttpClient, raw_url: &str) -> CoreResult<M3u
         401 | 403 => return Err(CoreError::AuthFailed),
         status => return Err(CoreError::Http { status }),
     }
+    Ok((resp.body, owned))
+}
+
+pub(crate) fn probe_with(http: &dyn HttpClient, raw_url: &str) -> CoreResult<M3uSummary> {
+    let (body, owned) = open_playlist(http, raw_url)?;
+    let secrets: Vec<&str> = owned.iter().map(String::as_str).collect();
     let mut entry_count = 0u64;
     let mut groups = HashSet::new();
     let header = m3u::parse(
-        BufReader::with_capacity(64 * 1024, resp.body.take(u64::MAX)),
+        BufReader::with_capacity(64 * 1024, body.take(u64::MAX)),
         |e| {
             entry_count += 1;
             if let Some(g) = e.group {

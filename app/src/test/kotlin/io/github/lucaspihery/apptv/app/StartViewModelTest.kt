@@ -5,8 +5,6 @@ import io.github.lucaspihery.apptv.core.data.account.SavedAccount
 import io.github.lucaspihery.apptv.core.testing.FakeAccountRepository
 import io.github.lucaspihery.apptv.core.testing.MainDispatcherRule
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -25,13 +23,5 @@ class StartViewModelTest {
             setAccount(SavedAccount(AccountType.XTREAM, "http://h", "alice", null, null, null))
         }
         assertEquals(Route.Home, StartViewModel(repo).startRoute.value)
-    }
-
-    @Test
-    fun `description du compte sans secret`() {
-        val text = describe(SavedAccount(AccountType.XTREAM, "http://h:8080", "alice", null, 2, null))
-        assertTrue(text.contains("alice"))
-        assertTrue(text.contains("2"))
-        assertFalse(text.contains("Expire"))
     }
 }

@@ -10,7 +10,7 @@ peu de RAM. TV de référence : TCL 65", MediaTek, Android 11, 1 à 2 Go de RAM.
 
 ```
 rust/                     Cœur Rust (workspace Cargo)
-  crates/xtream-core/     client Xtream, parseur M3U, (XMLTV, cache SQLite : jalons 2 et 4)
+  crates/xtream-core/     client Xtream, parseur M3U, catalogue du direct (live.rs), (XMLTV, cache SQLite : jalons 2 et 4)
   crates/uniffi-bindgen/  générateur des bindings Kotlin
 build-logic/convention/   plugins Gradle de convention + plugin Rust (cargo-ndk, UniFFI)
 app/                      Activity unique, NavHost typé, manifeste TV
@@ -20,6 +20,7 @@ core/data                 comptes, DataStore, chiffrement AES-GCM (Android Keyst
 core/designsystem         thème verre, GlassBackground/GlassPanel, GlassClickable, GlassTextField
 core/testing              MainDispatcherRule, FakeAccountRepository
 feature/onboarding        connexion Xtream / M3U
+feature/live              liste des chaînes (catégories) et lecteur plein écran ExoPlayer
 ```
 
 Dépendances entre modules : `feature:*` → `core:*`. **Seul `core:data` dépend de `core:native`** :
