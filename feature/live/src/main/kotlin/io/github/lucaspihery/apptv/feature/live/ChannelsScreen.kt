@@ -13,15 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -44,6 +42,9 @@ import io.github.lucaspihery.apptv.core.designsystem.glass.GlassPanel
 import io.github.lucaspihery.apptv.core.designsystem.theme.Glass
 import io.github.lucaspihery.apptv.core.designsystem.theme.overscanPadding
 
+private const val ALL_KEY = "@all"
+private const val LOGOUT_KEY = "@logout"
+
 object ChannelsTags {
     const val CHANNEL = "live.channel"
     const val CATEGORY = "live.category"
@@ -62,8 +63,13 @@ fun ChannelsRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     ChannelsScreen(
         state = state,
+        onFocusCategory = viewModel::focusCategory,
         onSelectCategory = viewModel::selectCategory,
-        onPlay = onPlay,
+        initialIndex = viewModel::lastPlayedIndex,
+        onPlay = { categoryId, index ->
+            viewModel.onPlayed(categoryId, index)
+            onPlay(categoryId, index)
+        },
         onRetry = { viewModel.load(refresh = true) },
         onLogout = { viewModel.logout(onLoggedOut) },
     )
@@ -72,7 +78,9 @@ fun ChannelsRoute(
 @Composable
 fun ChannelsScreen(
     state: ChannelsUiState,
+    onFocusCategory: (String?) -> Unit,
     onSelectCategory: (String?) -> Unit,
+    initialIndex: (categoryId: String?) -> Int,
     onPlay: (categoryId: String?, index: Int) -> Unit,
     onRetry: () -> Unit,
     onLogout: () -> Unit,
@@ -82,7 +90,7 @@ fun ChannelsScreen(
             when {
                 state.loading -> Message("Chargement des chaînes…")
                 state.error != null -> ErrorPanel(state.error, onRetry, onLogout)
-                else -> Content(state, onSelectCategory, onPlay, onLogout)
+                else -> Content(state, onFocusCategory, onSelectCategory, initialIndex, onPlay, onLogout)
             }
         }
     }
@@ -91,22 +99,27 @@ fun ChannelsScreen(
 @Composable
 private fun Content(
     state: ChannelsUiState,
+    onFocusCategory: (String?) -> Unit,
     onSelectCategory: (String?) -> Unit,
+    initialIndex: (categoryId: String?) -> Int,
     onPlay: (categoryId: String?, index: Int) -> Unit,
     onLogout: () -> Unit,
 ) {
     val p = Glass.palette
-    // Chaîne focalisée, conservée au retour du lecteur.
-    var focusedIndex by rememberSaveable(state.selectedCategoryId) { mutableIntStateOf(0) }
+    val categoryId = state.selectedCategoryId
+    val channels = state.channels
+    // Chaîne à focaliser à l'arrivée (ou au retour du lecteur). Calculée une fois par
+    // catégorie : le focus qui se déplace dans la liste ne recompose rien.
+    val target = remember(categoryId, channels) {
+        initialIndex(categoryId).coerceIn(0, (channels.size - 1).coerceAtLeast(0))
+    }
     val channelFocus = remember { FocusRequester() }
-    val channelList = rememberLazyListState(initialFirstVisibleItemIndex = focusedIndex)
-    LaunchedEffect(state.selectedCategoryId) {
-        if (state.channels.isNotEmpty() && focusedIndex < state.channels.size) {
-            channelList.scrollToItem(focusedIndex)
-        }
+    val channelList = rememberLazyListState(initialFirstVisibleItemIndex = target)
+    LaunchedEffect(categoryId, channels) {
+        if (channels.isNotEmpty()) channelList.scrollToItem(target)
     }
     LaunchedEffect(Unit) {
-        if (state.channels.isNotEmpty()) runCatching { channelFocus.requestFocus() }
+        if (channels.isNotEmpty()) runCatching { channelFocus.requestFocus() }
     }
 
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -115,18 +128,18 @@ private fun Content(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
             ) {
-                itemsIndexed(state.categories, key = { _, c -> c.id ?: "\u0000all" }) { _, c ->
+                items(state.categories, key = { it.id ?: ALL_KEY }, contentType = { "category" }) { c ->
                     CategoryRow(
                         item = c,
-                        selected = c.id == state.selectedCategoryId,
-                        onFocused = { onSelectCategory(c.id) },
+                        selected = c.id == categoryId,
+                        onFocused = onFocusCategory,
                         onClick = {
                             onSelectCategory(c.id)
                             runCatching { channelFocus.requestFocus() }
                         },
                     )
                 }
-                item(key = "\u0000logout") {
+                item(key = LOGOUT_KEY, contentType = "logout") {
                     Spacer(Modifier.height(8.dp))
                     GlassButton(text = "Se déconnecter", onClick = onLogout)
                 }
@@ -148,29 +161,25 @@ private fun Content(
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Text(
-                        "${state.channels.size} chaînes",
+                        "${channels.size} chaînes",
                         style = MaterialTheme.typography.bodyMedium,
                         color = p.contentMuted,
                     )
                 }
-                if (state.channels.isEmpty()) {
+                if (channels.isEmpty()) {
                     Text("Aucune chaîne dans cette catégorie.", color = p.contentMuted)
                 } else {
+                    val requester = Modifier.focusRequester(channelFocus)
                     LazyColumn(
                         state = channelList,
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         contentPadding = PaddingValues(vertical = 8.dp, horizontal = 8.dp),
                     ) {
-                        itemsIndexed(state.channels) { index, channel ->
+                        itemsIndexed(channels, contentType = { _, _ -> "channel" }) { index, channel ->
                             ChannelRow(
                                 channel = channel,
-                                onClick = {
-                                    focusedIndex = index
-                                    onPlay(state.selectedCategoryId, index)
-                                },
-                                modifier = Modifier
-                                    .then(if (index == focusedIndex.coerceAtMost(state.channels.lastIndex)) Modifier.focusRequester(channelFocus) else Modifier)
-                                    .onFocusChanged { if (it.isFocused) focusedIndex = index },
+                                onClick = { onPlay(categoryId, index) },
+                                modifier = if (index == target) requester else Modifier,
                             )
                         }
                     }
@@ -181,16 +190,17 @@ private fun Content(
 }
 
 @Composable
-private fun CategoryRow(item: CategoryItem, selected: Boolean, onFocused: () -> Unit, onClick: () -> Unit) {
+private fun CategoryRow(item: CategoryItem, selected: Boolean, onFocused: (String?) -> Unit, onClick: () -> Unit) {
     val p = Glass.palette
     GlassClickable(
         onClick = onClick,
         selected = selected,
         focusedScale = 1.03f,
+        focusedGlow = false,
         modifier = Modifier
             .fillMaxWidth()
             .testTag(ChannelsTags.CATEGORY)
-            .onFocusChanged { if (it.isFocused) onFocused() },
+            .onFocusChanged { if (it.isFocused) onFocused(item.id) },
     ) {
         Row(
             Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
@@ -215,6 +225,7 @@ private fun ChannelRow(channel: LiveChannel, onClick: () -> Unit, modifier: Modi
     GlassClickable(
         onClick = onClick,
         focusedScale = 1.02f,
+        focusedGlow = false,
         modifier = modifier.fillMaxWidth().testTag(ChannelsTags.CHANNEL),
     ) {
         Row(

@@ -19,6 +19,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // En attendant une clé de publication : signée avec la clé de debug pour pouvoir
+            // installer sur la TV la version optimisée (R8, non débogable), bien plus fluide.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

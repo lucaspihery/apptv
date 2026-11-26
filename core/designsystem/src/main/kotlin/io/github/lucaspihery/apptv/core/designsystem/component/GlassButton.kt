@@ -36,6 +36,8 @@ fun GlassClickable(
     selected: Boolean = false,
     shape: Shape = GlassShapes.control,
     focusedScale: Float = GlassMotion.FOCUSED_SCALE,
+    /** Halo au focus. À couper dans les longues listes : l'ombre colorée coûte cher sur une TV modeste. */
+    focusedGlow: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val p = Glass.palette
@@ -65,7 +67,7 @@ fun GlassClickable(
         ),
         glow = ClickableSurfaceDefaults.glow(
             glow = Glow.None,
-            focusedGlow = Glow(elevationColor = accent.copy(alpha = 0.55f), elevation = 18.dp),
+            focusedGlow = if (focusedGlow) Glow(elevationColor = accent.copy(alpha = 0.55f), elevation = 18.dp) else Glow.None,
         ),
         content = content,
     )

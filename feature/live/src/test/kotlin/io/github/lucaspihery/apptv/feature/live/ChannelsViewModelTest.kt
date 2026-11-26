@@ -8,6 +8,8 @@ import io.github.lucaspihery.apptv.core.data.live.LiveChannel
 import io.github.lucaspihery.apptv.core.data.live.LiveRepository
 import io.github.lucaspihery.apptv.core.testing.FakeAccountRepository
 import io.github.lucaspihery.apptv.core.testing.MainDispatcherRule
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -29,9 +31,33 @@ class ChannelsViewModelTest {
         channels = listOf(channel("TF1", "tnt"), channel("France 2", "tnt"), channel("Foot", "sport")),
     )
 
+    private fun vm(live: LiveRepository) =
+        ChannelsViewModel(live, FakeAccountRepository(), main.dispatcher, settleMs = 250)
+
+    @Test
+    fun `parcourir les catégories ne change la liste qu'une fois le focus posé`() = runTest(main.dispatcher) {
+        val vm = vm(FakeLive(CoreResult.Ok(catalog)))
+        vm.focusCategory("tnt")
+        vm.focusCategory("sport")
+        advanceTimeBy(100)
+        assertEquals(null, vm.state.value.selectedCategoryId)
+        advanceTimeBy(200)
+        assertEquals("sport", vm.state.value.selectedCategoryId)
+        assertEquals(listOf("Foot"), vm.state.value.channels.map { it.name })
+    }
+
+    @Test
+    fun `retour du lecteur sur la dernière chaîne ouverte`() {
+        val vm = vm(FakeLive(CoreResult.Ok(catalog)))
+        assertEquals(0, vm.lastPlayedIndex("tnt"))
+        vm.onPlayed("tnt", 1)
+        assertEquals(1, vm.lastPlayedIndex("tnt"))
+        assertEquals(0, vm.lastPlayedIndex(null))
+    }
+
     @Test
     fun `arrivée sur toutes les chaînes puis filtre par catégorie`() {
-        val vm = ChannelsViewModel(FakeLive(CoreResult.Ok(catalog)), FakeAccountRepository())
+        val vm = vm(FakeLive(CoreResult.Ok(catalog)))
         val s = vm.state.value
         assertFalse(s.loading)
         assertEquals(listOf(null, "tnt", "sport"), s.categories.map { it.id })
@@ -47,7 +73,7 @@ class ChannelsViewModelTest {
     @Test
     fun `erreur puis nouvel essai`() {
         val live = FakeLive(CoreResult.Err(AccountError.Timeout))
-        val vm = ChannelsViewModel(live, FakeAccountRepository())
+        val vm = vm(live)
         assertEquals(AccountError.Timeout, vm.state.value.error)
         live.result = CoreResult.Ok(catalog)
         vm.load()
