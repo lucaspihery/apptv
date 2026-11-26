@@ -1,22 +1,100 @@
-# AppTV
+<div align="center">
 
-Lecteur IPTV pour Android TV (Xtream Codes ou playlist M3U), avec une interface « verre »
-moderne. L'appli ne fournit aucun contenu : elle lit les flux de votre fournisseur avec vos
-identifiants. L'architecture et les décisions techniques sont décrites dans [CLAUDE.md](CLAUDE.md).
+# 📺 AppTV
 
-## Jalons
+**Lecteur IPTV pour Android TV, pensé pour la télécommande et pour l'image.**
+
+Résolution native jusqu'à la 4K, HDR, fréquence d'image d'origine et zapping rapide,
+même sur une TV qui a peu de mémoire.
+
+[![Android TV](https://img.shields.io/badge/Android%20TV-7.0%2B%20(API%2024)-3DDC84?logo=android&logoColor=white)](https://developer.android.com/tv)
+[![Target SDK](https://img.shields.io/badge/targetSdk-36-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
+[![Rust](https://img.shields.io/badge/Rust-1.100-000000?logo=rust&logoColor=white)](rust/)
+[![Media3 ExoPlayer](https://img.shields.io/badge/Media3%20ExoPlayer-1.11-FF6F00?logo=googleplay&logoColor=white)](https://developer.android.com/media/media3/exoplayer)
+<br>
+[![Xtream Codes](https://img.shields.io/badge/Xtream%20Codes-pris%20en%20charge-2EA44F)](#-fonctionnalités)
+[![4K HDR](https://img.shields.io/badge/vidéo-4K%20·%20HDR-E3B341)](#-fonctionnalités)
+[![Langue](https://img.shields.io/badge/langue-français-0055A4)](#)
+[![Dernier commit](https://img.shields.io/github/last-commit/lucaspihery/apptv?label=dernier%20commit)](https://github.com/lucaspihery/apptv/commits/main)
+[![PR](https://img.shields.io/github/issues-pr/lucaspihery/apptv?label=PR%20ouvertes)](https://github.com/lucaspihery/apptv/pulls)
+
+<img src="docs/apercus/menu-principal.jpg" alt="Menu principal d'AppTV : catégories à gauche, chaînes avec programme en cours et pastilles de qualité à droite" width="860">
+
+</div>
+
+> [!NOTE]
+> AppTV ne fournit **aucun contenu**. L'appli lit les flux de votre fournisseur avec vos
+> propres identifiants (compte Xtream Codes ou playlist M3U).
+
+## ✨ Fonctionnalités
+
+| | |
+|---|---|
+| 🔐 **Connexion Xtream** | Identifiants stockés chiffrés (AES-256-GCM, clé Android Keystore non exportable). Jamais de mot de passe ni d'URL de lecture dans les journaux. |
+| 🗂️ **Chaînes par catégories** | Listes virtualisées, fluides même avec des dizaines de milliers de chaînes. |
+| ▶️ **Lecture plein écran** | Media3 ExoPlayer sur `SurfaceView` : résolution native, HDR, changement de fréquence d'affichage. |
+| ⏭️ **Zapping** | Chaîne suivante / précédente à la télécommande, avec bandeau d'information. |
+| 🗓️ **Guide TV** | Programme en cours et suivant sur chaque chaîne, avec barre de progression, et grille horaire. |
+| ⭐ **Mes chaînes** | Favoris accessibles en un clic depuis le menu. |
+| 🔎 **Recherche** | Insensible aux accents. |
+| 🕘 **Historique** | Les dernières chaînes regardées. |
+| 🏷️ **Pastilles de qualité** | Définition (HD, FHD, 4K) et images par seconde détectées sur le flux. |
+| 🎮 **Pensé pour la télécommande** | Tout se pilote au D-pad, focus bien visible, marges d'overscan respectées. |
+
+## 🖼️ Aperçus
+
+<table>
+  <tr>
+    <td><img src="docs/apercus/guide-tv.jpg" alt="Guide TV : grille horaire des programmes par chaîne"></td>
+    <td><img src="docs/apercus/historique.jpg" alt="Historique des chaînes regardées"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Guide TV</sub></td>
+    <td align="center"><sub>Historique</sub></td>
+  </tr>
+</table>
+
+<sub>Maquettes de l'interface, avec des chaînes et des programmes fictifs.</sub>
+
+## 🧱 Architecture
+
+```mermaid
+flowchart LR
+    UI["feature:*<br/>Compose for TV"] --> DATA["core:data<br/>comptes, chiffrement, IptvCore"]
+    DATA --> NATIVE["core:native<br/>bindings UniFFI"]
+    NATIVE --> RUST["Cœur Rust<br/>xtream-core"]
+    RUST -- "HTTP (ureq + rustls)" --> SRV[("Serveur Xtream / M3U")]
+    UI --> PLAYER["Media3 ExoPlayer"]
+    PLAYER -- "flux vidéo" --> SRV
+```
+
+- **Cœur Rust** (`rust/crates/xtream-core`) : client Xtream, parseur M3U, catalogue du direct,
+  EPG. Exposé à Kotlin par [UniFFI](https://mozilla.github.io/uniffi-rs/), compilé pour
+  `arm64-v8a`, `armeabi-v7a` et `x86_64`.
+- **Appli Android** : une seule Activity, Jetpack Compose, Hilt, navigation typée.
+- **Lecture vidéo** : uniquement Media3 ExoPlayer, Rust ne touche jamais à la vidéo.
+- **Interface « verre »** : effets translucides précalculés sur les TV modestes,
+  jamais de flou coûteux au-dessus de la vidéo.
+
+Les décisions techniques et les pièges connus sont détaillés dans [CLAUDE.md](CLAUDE.md).
+
+## 🗺️ Feuille de route
 
 | Jalon | Contenu | État |
-|---|---|---|
-| 1 | Squelette, navigation D-pad, connexion Xtream / M3U, mot de passe chiffré | en cours |
-| 2 | TV en direct : catégories, grille, favoris, recherche sans accents | |
-| 3 | Lecteur plein écran, zapping, bandeau technique, reprise au direct | |
-| 4 | EPG : en cours / suivant, grille 12 h, cache SQLite | |
-| 5 | Mini-lecteur dans la liste | |
-| 6 | VOD, séries, multi-comptes, réglages | |
-| 7 | Performance (Macrobenchmark, Baseline Profile), finitions | |
+|:---:|---|:---:|
+| 1 | Squelette, navigation D-pad, connexion Xtream / M3U, mot de passe chiffré | ✅ |
+| 2 | TV en direct : catégories, grille, favoris, recherche sans accents | ✅ |
+| 3 | Lecteur plein écran, zapping, bandeau technique, reprise au direct | ✅ |
+| 4 | EPG : en cours / suivant, grille horaire, cache SQLite | 🚧 |
+| 5 | Mini-lecteur dans la liste | ⏳ |
+| 6 | VOD, séries, multi-comptes, réglages | ⏳ |
+| 7 | Performance (Macrobenchmark, Baseline Profile), finitions | ⏳ |
 
-## Compiler
+✅ fait · 🚧 en cours · ⏳ à venir
+
+## 🛠️ Compiler
 
 Prérequis : JDK 21, SDK Android (plateforme 36), NDK, [rustup](https://rustup.rs) et
 cargo-ndk 4 (`cargo install cargo-ndk --locked`). La version de Rust et les cibles Android
@@ -25,12 +103,19 @@ sont installées automatiquement par `rust/rust-toolchain.toml`.
 ```bash
 ./gradlew assembleDebug                              # 3 ABI : arm64-v8a, armeabi-v7a, x86_64
 ./gradlew assembleDebug -Papptv.abis=armeabi-v7a     # plus rapide pour une TV 32 bits
+./gradlew assembleDebug -Papptv.abis=x86_64          # émulateur
 ```
 
-L'APK se trouve dans `app/build/outputs/apk/debug/`. La CI publie aussi un APK debug en
-artefact sur chaque PR.
+L'APK se trouve dans `app/build/outputs/apk/debug/`.
 
-## Installer sur la TV et diagnostiquer avec ADB
+### Tests
+
+```bash
+cd rust && cargo fmt --all && cargo clippy --all-targets -- -D warnings && cargo test
+./gradlew testDebugUnitTest lintDebug
+```
+
+## 📲 Installer sur la TV et diagnostiquer avec ADB
 
 ### 1. Activer le débogage sur la TV
 
