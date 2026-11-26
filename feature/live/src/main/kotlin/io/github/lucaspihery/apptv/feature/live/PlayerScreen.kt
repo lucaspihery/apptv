@@ -113,13 +113,13 @@ fun PlayerRoute(viewModel: PlayerViewModel = hiltViewModel()) {
             exit = fadeOut(tween(200)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Banner(state)
+            PlayerBanner(state)
         }
     }
 }
 
 @Composable
-private fun Banner(state: PlayerUiState) {
+internal fun PlayerBanner(state: PlayerUiState) {
     // Dégradé sombre simple : jamais de flou ni de verre sur la vidéo.
     Column(
         Modifier

@@ -105,6 +105,11 @@ private val ROW_HEIGHT = 64.dp
 @Composable
 fun GuideRoute(onPlay: (categoryId: String?, index: Int) -> Unit, viewModel: GuideViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    GuideScreen(state, viewModel.epg) { index -> onPlay(viewModel.categoryId, index) }
+}
+
+@Composable
+fun GuideScreen(state: GuideUiState, epg: EpgRepository, onPlay: (index: Int) -> Unit) {
     val p = Glass.palette
     val now by rememberNowSeconds()
     val windowStart = remember(now / SLOT_S) { now / SLOT_S * SLOT_S }
@@ -131,12 +136,12 @@ fun GuideRoute(onPlay: (categoryId: String?, index: Int) -> Unit, viewModel: Gui
                             itemsIndexed(state.channels, contentType = { _, _ -> "row" }) { index, channel ->
                                 GuideRow(
                                     channel = channel,
-                                    epg = viewModel.epg,
+                                    epg = epg,
                                     windowStart = windowStart,
                                     now = now,
                                     firstCellModifier = if (index == 0) Modifier.focusRequester(firstCell) else Modifier,
                                     onFocused = { focused = channel to it },
-                                    onClick = { onPlay(viewModel.categoryId, index) },
+                                    onClick = { onPlay(index) },
                                 )
                             }
                         }
