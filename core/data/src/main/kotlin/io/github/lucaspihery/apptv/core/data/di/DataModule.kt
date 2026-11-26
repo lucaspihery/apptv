@@ -18,8 +18,13 @@ import io.github.lucaspihery.apptv.core.data.core.UniffiIptvCore
 import io.github.lucaspihery.apptv.core.data.crypto.AesGcmCipher
 import io.github.lucaspihery.apptv.core.data.crypto.KeystoreKeyProvider
 import io.github.lucaspihery.apptv.core.data.crypto.SecretCipher
+import io.github.lucaspihery.apptv.core.data.live.DefaultEpgRepository
+import io.github.lucaspihery.apptv.core.data.live.DefaultFavoritesRepository
 import io.github.lucaspihery.apptv.core.data.live.DefaultLiveRepository
+import io.github.lucaspihery.apptv.core.data.live.EpgRepository
+import io.github.lucaspihery.apptv.core.data.live.FavoritesRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveRepository
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -32,6 +37,12 @@ abstract class DataModule {
     abstract fun bindLiveRepository(impl: DefaultLiveRepository): LiveRepository
 
     @Binds
+    abstract fun bindEpgRepository(impl: DefaultEpgRepository): EpgRepository
+
+    @Binds
+    abstract fun bindFavoritesRepository(impl: DefaultFavoritesRepository): FavoritesRepository
+
+    @Binds
     abstract fun bindIptvCore(impl: UniffiIptvCore): IptvCore
 
     companion object {
@@ -39,6 +50,12 @@ abstract class DataModule {
         @Singleton
         fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
             PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("account") }
+
+        @Provides
+        @Singleton
+        @Named(DefaultFavoritesRepository.STORE)
+        fun provideFavoritesStore(@ApplicationContext context: Context): DataStore<Preferences> =
+            PreferenceDataStoreFactory.create { context.preferencesDataStoreFile(DefaultFavoritesRepository.STORE) }
 
         @Provides
         @Singleton

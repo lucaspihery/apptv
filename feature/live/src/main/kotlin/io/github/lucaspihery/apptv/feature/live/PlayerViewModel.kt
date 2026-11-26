@@ -17,11 +17,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.lucaspihery.apptv.core.data.core.CoreResult
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
+import io.github.lucaspihery.apptv.core.data.live.EpgRepository
+import io.github.lucaspihery.apptv.core.data.live.FavoritesRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveRepository
+import io.github.lucaspihery.apptv.core.data.live.Program
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,6 +37,8 @@ data class PlayerUiState(
     val total: Int = 0,
     val buffering: Boolean = true,
     val error: String? = null,
+    /** Programme en cours puis suivants (guide), vide si inconnu. */
+    val programs: List<Program> = emptyList(),
 )
 
 /**
@@ -45,12 +51,15 @@ class PlayerViewModel @Inject constructor(
     @ApplicationContext context: Context,
     savedState: SavedStateHandle,
     private val live: LiveRepository,
+    private val favorites: FavoritesRepository,
+    private val epg: EpgRepository,
 ) : ViewModel() {
 
     private val categoryId: String? = savedState.get<String>(ARG_CATEGORY)?.takeIf { it.isNotEmpty() }
     private var index: Int = savedState.get<Int>(ARG_INDEX) ?: 0
     private var channels: List<LiveChannel> = emptyList()
     private var tuneJob: Job? = null
+    private var epgJob: Job? = null
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
@@ -83,7 +92,7 @@ class PlayerViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val catalog = (live.catalog() as? CoreResult.Ok)?.value
-            channels = catalog?.channelsOf(categoryId).orEmpty()
+            channels = catalog?.playlist(categoryId, favorites.favorites.first()).orEmpty()
             if (channels.isEmpty()) {
                 _state.update { it.copy(buffering = false, error = "Chaîne introuvable.") }
             } else {
@@ -108,8 +117,21 @@ class PlayerViewModel @Inject constructor(
     private fun tune(i: Int) {
         index = i
         val channel = channels[i]
-        _state.update { PlayerUiState(channel = channel, position = i + 1, total = channels.size, buffering = true) }
+        _state.update {
+            PlayerUiState(
+                channel = channel,
+                position = i + 1,
+                total = channels.size,
+                buffering = true,
+                programs = epg.cached(channel).orEmpty(),
+            )
+        }
         tuneJob?.cancel()
+        epgJob?.cancel()
+        epgJob = viewModelScope.launch {
+            val programs = epg.programs(channel)
+            _state.update { if (it.channel === channel) it.copy(programs = programs) else it }
+        }
         tuneJob = viewModelScope.launch {
             val url = live.streamUrl(channel)
             if (url == null) {

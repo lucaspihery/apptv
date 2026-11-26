@@ -45,6 +45,8 @@ dependencies {
     implementation(libs.androidx.hilt.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     testImplementation(project(":core:testing"))
 }

@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -126,11 +128,34 @@ private fun Banner(state: PlayerUiState) {
             .padding(start = 64.dp, end = 64.dp, top = 64.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            state.channel?.let { ChannelLogo(it, 96.dp, 56.dp) }
             state.channel?.number?.let {
                 Text(it.toString(), style = MaterialTheme.typography.headlineMedium, color = Color.White.copy(alpha = 0.7f))
             }
             Text(state.channel?.name.orEmpty(), style = MaterialTheme.typography.headlineMedium, color = Color.White)
+        }
+        val now = System.currentTimeMillis() / 1000
+        val current = state.programs.firstOrNull { it.end > now }
+        val next = state.programs.firstOrNull { current != null && it.start >= current.end }
+        if (current != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${formatTime(current.start)} – ${formatTime(current.end)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White.copy(alpha = 0.7f),
+                )
+                Text(current.title, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1)
+            }
+            ProgressBar(current.progress(now), Modifier.width(480.dp).height(4.dp))
+            if (next != null) {
+                Text(
+                    "Ensuite ${formatTime(next.start)} · ${next.title}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.75f),
+                    maxLines = 1,
+                )
+            }
         }
         val status = when {
             state.error != null -> "${state.error} OK pour réessayer."

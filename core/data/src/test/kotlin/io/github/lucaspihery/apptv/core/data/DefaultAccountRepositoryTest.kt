@@ -15,6 +15,8 @@ import io.github.lucaspihery.apptv.core.data.live.DefaultLiveRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveCatalog
 import io.github.lucaspihery.apptv.core.data.live.LiveCategory
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
+import io.github.lucaspihery.apptv.core.data.live.Program
+import io.github.lucaspihery.apptv.core.data.live.DefaultEpgRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -59,6 +61,8 @@ class DefaultAccountRepositoryTest {
         override fun xtreamLiveUrl(server: String, username: String, password: String, streamId: Long, ext: String) =
             CoreResult.Ok("$server/live/$username/$password/$streamId.$ext")
         override fun m3uLiveCatalog(url: String) = live.also { calls += "m3u live" }
+        override fun xtreamShortEpg(server: String, username: String, password: String, streamId: Long, limit: Int) =
+            CoreResult.Ok(listOf(Program("Journal", null, 0, Long.MAX_VALUE))).also { calls += "epg $streamId $limit" }
     }
 
     private fun TestScope.repo(core: FakeCore = FakeCore()): Pair<DefaultAccountRepository, java.io.File> {
@@ -141,5 +145,29 @@ class DefaultAccountRepositoryTest {
         val catalog = LiveCatalog(listOf(LiveCategory("a", "A")), listOf(c, c.copy(categoryId = "a")))
         assertEquals(1, catalog.channelsOf("a").size)
         assertEquals(2, catalog.channelsOf(null).size)
+    }
+
+    @Test
+    fun `guide demandé une fois puis servi depuis le cache`() = runTest {
+        val core = FakeCore()
+        val (repo, _) = repo(core)
+        repo.loginXtream("exemple.tv", "alice", "secret")
+        val epg = DefaultEpgRepository(repo, core, StandardTestDispatcher(testScheduler))
+        val tf1 = LiveChannel("TF1", 1, null, "1", null, 101, null)
+        assertEquals(null, epg.cached(tf1))
+        assertEquals("Journal", epg.programs(tf1).single().title)
+        assertEquals("Journal", epg.programs(tf1).single().title)
+        assertEquals(1, core.calls.count { it.startsWith("epg 101") })
+        // Chaîne M3U : pas de guide, pas d'appel.
+        assertTrue(epg.programs(LiveChannel("F2", null, null, null, null, null, "http://h/2.ts")).isEmpty())
+    }
+
+    @Test
+    fun `liste de zapping des favoris`() {
+        val a = LiveChannel("A", null, null, "c", null, 1, null)
+        val b = LiveChannel("B", null, null, "c", null, 2, null)
+        val catalog = LiveCatalog(listOf(LiveCategory("c", "C")), listOf(a, b))
+        assertEquals(listOf(b), catalog.playlist(io.github.lucaspihery.apptv.core.data.live.VirtualCategories.FAVORITES, setOf("x2")))
+        assertEquals(2, catalog.playlist("c", emptySet()).size)
     }
 }

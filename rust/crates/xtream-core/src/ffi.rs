@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 use std::io::{BufReader, Read};
 
+use crate::epg::EpgProgram;
 use crate::error::{CoreError, CoreResult};
 use crate::http::{HttpClient, UreqHttp};
 use crate::live::LiveCatalog;
@@ -127,6 +128,23 @@ pub fn xtream_live_url(
             .expose()
             .to_owned(),
     )
+}
+
+/// Programmes à venir d'une chaîne Xtream (le premier est celui en cours).
+#[uniffi::export]
+pub fn xtream_short_epg(
+    server: String,
+    username: String,
+    password: String,
+    stream_id: i64,
+    limit: u32,
+) -> CoreResult<Vec<EpgProgram>> {
+    let creds = Credentials::new(&server, &username, &password)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    XtreamClient::new(creds, UreqHttp::shared()).short_epg(stream_id, limit, now)
 }
 
 /// Catalogue du direct d'une playlist M3U (une catégorie par groupe), lu en flux.

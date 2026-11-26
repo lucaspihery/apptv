@@ -34,9 +34,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.github.lucaspihery.apptv.core.data.account.AccountError
+import io.github.lucaspihery.apptv.core.data.live.EpgRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
+import io.github.lucaspihery.apptv.core.data.live.VirtualCategories
 import io.github.lucaspihery.apptv.core.designsystem.component.GlassButton
 import io.github.lucaspihery.apptv.core.designsystem.component.GlassClickable
+import io.github.lucaspihery.apptv.core.designsystem.component.GlassTextField
 import io.github.lucaspihery.apptv.core.designsystem.glass.GlassBackground
 import io.github.lucaspihery.apptv.core.designsystem.glass.GlassPanel
 import io.github.lucaspihery.apptv.core.designsystem.theme.Glass
@@ -44,77 +47,88 @@ import io.github.lucaspihery.apptv.core.designsystem.theme.overscanPadding
 
 private const val ALL_KEY = "@all"
 private const val LOGOUT_KEY = "@logout"
+private const val SEARCH_KEY = "@search-entry"
+private const val GUIDE_KEY = "@guide-entry"
 
 object ChannelsTags {
     const val CHANNEL = "live.channel"
     const val CATEGORY = "live.category"
+    const val SEARCH_FIELD = "live.search"
 }
 
 /**
- * Écran d'arrivée après la connexion : catégories à gauche, chaînes à droite.
- * [onPlay] reçoit la catégorie affichée et la position de la chaîne dans cette liste.
+ * Écran d'arrivée après la connexion : catégories à gauche (avec « Rechercher »,
+ * « Guide TV » et « Mes chaînes »), chaînes à droite avec logo et programme en cours.
+ * OK : regarder. Appui long sur OK : ajouter ou retirer de « Mes chaînes ».
  */
 @Composable
 fun ChannelsRoute(
     onPlay: (categoryId: String?, index: Int) -> Unit,
+    onOpenGuide: (categoryId: String?) -> Unit,
     onLoggedOut: () -> Unit,
     viewModel: ChannelsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     ChannelsScreen(
         state = state,
-        onFocusCategory = viewModel::focusCategory,
-        onSelectCategory = viewModel::selectCategory,
-        initialIndex = viewModel::lastPlayedIndex,
-        onPlay = { categoryId, index ->
-            viewModel.onPlayed(categoryId, index)
-            onPlay(categoryId, index)
-        },
-        onRetry = { viewModel.load(refresh = true) },
-        onLogout = { viewModel.logout(onLoggedOut) },
+        epg = viewModel.epg,
+        actions = ChannelsActions(
+            focusCategory = viewModel::focusCategory,
+            selectCategory = viewModel::selectCategory,
+            initialIndex = viewModel::lastPlayedIndex,
+            play = { index ->
+                val (categoryId, position) = viewModel.playTarget(index)
+                onPlay(categoryId, position)
+            },
+            toggleFavorite = viewModel::toggleFavorite,
+            setQuery = viewModel::setQuery,
+            openGuide = { onOpenGuide(state.selectedCategoryId?.takeIf { it != SEARCH }) },
+            retry = { viewModel.load(refresh = true) },
+            logout = { viewModel.logout(onLoggedOut) },
+        ),
     )
 }
 
+/** Actions de l'écran, regroupées pour garder des paramètres stables. */
+class ChannelsActions(
+    val focusCategory: (String?) -> Unit,
+    val selectCategory: (String?) -> Unit,
+    val initialIndex: (categoryId: String?) -> Int,
+    val play: (index: Int) -> Unit,
+    val toggleFavorite: (LiveChannel) -> Unit,
+    val setQuery: (String) -> Unit,
+    val openGuide: () -> Unit,
+    val retry: () -> Unit,
+    val logout: () -> Unit,
+)
+
 @Composable
-fun ChannelsScreen(
-    state: ChannelsUiState,
-    onFocusCategory: (String?) -> Unit,
-    onSelectCategory: (String?) -> Unit,
-    initialIndex: (categoryId: String?) -> Int,
-    onPlay: (categoryId: String?, index: Int) -> Unit,
-    onRetry: () -> Unit,
-    onLogout: () -> Unit,
-) {
+fun ChannelsScreen(state: ChannelsUiState, epg: EpgRepository, actions: ChannelsActions) {
     GlassBackground {
         Box(Modifier.fillMaxSize().overscanPadding()) {
             when {
                 state.loading -> Message("Chargement des chaînes…")
-                state.error != null -> ErrorPanel(state.error, onRetry, onLogout)
-                else -> Content(state, onFocusCategory, onSelectCategory, initialIndex, onPlay, onLogout)
+                state.error != null -> ErrorPanel(state.error, actions.retry, actions.logout)
+                else -> Content(state, epg, actions)
             }
         }
     }
 }
 
 @Composable
-private fun Content(
-    state: ChannelsUiState,
-    onFocusCategory: (String?) -> Unit,
-    onSelectCategory: (String?) -> Unit,
-    initialIndex: (categoryId: String?) -> Int,
-    onPlay: (categoryId: String?, index: Int) -> Unit,
-    onLogout: () -> Unit,
-) {
+private fun Content(state: ChannelsUiState, epg: EpgRepository, actions: ChannelsActions) {
     val p = Glass.palette
     val categoryId = state.selectedCategoryId
     val channels = state.channels
     // Chaîne à focaliser à l'arrivée (ou au retour du lecteur). Calculée une fois par
     // catégorie : le focus qui se déplace dans la liste ne recompose rien.
     val target = remember(categoryId, channels) {
-        initialIndex(categoryId).coerceIn(0, (channels.size - 1).coerceAtLeast(0))
+        actions.initialIndex(categoryId).coerceIn(0, (channels.size - 1).coerceAtLeast(0))
     }
     val channelFocus = remember { FocusRequester() }
+    val searchFocus = remember { FocusRequester() }
     val channelList = rememberLazyListState(initialFirstVisibleItemIndex = target)
+    val now by rememberNowSeconds()
     LaunchedEffect(categoryId, channels) {
         if (channels.isNotEmpty()) channelList.scrollToItem(target)
     }
@@ -128,20 +142,41 @@ private fun Content(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 8.dp, horizontal = 4.dp),
             ) {
+                item(key = SEARCH_KEY, contentType = "entry") {
+                    CategoryRow(
+                        item = CategoryItem(SEARCH, "Rechercher", -1),
+                        selected = categoryId == SEARCH,
+                        onFocused = actions.focusCategory,
+                        onClick = {
+                            actions.selectCategory(SEARCH)
+                            runCatching { searchFocus.requestFocus() }
+                        },
+                    )
+                }
+                if (state.hasGuide) {
+                    item(key = GUIDE_KEY, contentType = "entry") {
+                        CategoryRow(
+                            item = CategoryItem(GUIDE_KEY, "Guide TV", -1),
+                            selected = false,
+                            onFocused = {},
+                            onClick = actions.openGuide,
+                        )
+                    }
+                }
                 items(state.categories, key = { it.id ?: ALL_KEY }, contentType = { "category" }) { c ->
                     CategoryRow(
                         item = c,
                         selected = c.id == categoryId,
-                        onFocused = onFocusCategory,
+                        onFocused = actions.focusCategory,
                         onClick = {
-                            onSelectCategory(c.id)
+                            actions.selectCategory(c.id)
                             runCatching { channelFocus.requestFocus() }
                         },
                     )
                 }
                 item(key = LOGOUT_KEY, contentType = "logout") {
                     Spacer(Modifier.height(8.dp))
-                    GlassButton(text = "Se déconnecter", onClick = onLogout)
+                    GlassButton(text = "Se déconnecter", onClick = actions.logout)
                 }
             }
         }
@@ -160,33 +195,66 @@ private fun Content(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Text(
-                        "${channels.size} chaînes",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = p.contentMuted,
+                    if (categoryId != SEARCH || state.query.isNotBlank()) {
+                        Text(
+                            "${channels.size} chaînes",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = p.contentMuted,
+                        )
+                    }
+                }
+                if (categoryId == SEARCH) {
+                    GlassTextField(
+                        value = state.query,
+                        onValueChange = actions.setQuery,
+                        label = "Nom de la chaîne",
+                        placeholder = "OK pour écrire, par exemple « france 2 »",
+                        modifier = Modifier.fillMaxWidth().focusRequester(searchFocus).testTag(ChannelsTags.SEARCH_FIELD),
                     )
                 }
-                if (channels.isEmpty()) {
-                    Text("Aucune chaîne dans cette catégorie.", color = p.contentMuted)
-                } else {
-                    val requester = Modifier.focusRequester(channelFocus)
-                    LazyColumn(
-                        state = channelList,
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp, horizontal = 8.dp),
-                    ) {
-                        itemsIndexed(channels, contentType = { _, _ -> "channel" }) { index, channel ->
-                            ChannelRow(
-                                channel = channel,
-                                onClick = { onPlay(categoryId, index) },
-                                modifier = if (index == target) requester else Modifier,
-                            )
+                when {
+                    channels.isNotEmpty() -> {
+                        val requester = Modifier.focusRequester(channelFocus)
+                        LazyColumn(
+                            state = channelList,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp, horizontal = 8.dp),
+                        ) {
+                            itemsIndexed(channels, contentType = { _, _ -> "channel" }) { index, channel ->
+                                ChannelRow(
+                                    channel = channel,
+                                    favorite = channel.key in state.favorites,
+                                    epg = epg,
+                                    now = now,
+                                    onClick = { actions.play(index) },
+                                    onLongClick = { actions.toggleFavorite(channel) },
+                                    modifier = if (index == target) requester else Modifier,
+                                )
+                            }
                         }
                     }
+                    categoryId == SEARCH -> Hint(
+                        if (state.query.isBlank()) "Tapez quelques lettres du nom de la chaîne."
+                        else "Aucune chaîne ne correspond à « ${state.query} ».",
+                    )
+                    categoryId == VirtualCategories.FAVORITES -> Hint(
+                        "Aucune chaîne dans « Mes chaînes ». Restez appuyé sur OK sur une chaîne pour l'ajouter.",
+                    )
+                    else -> Hint("Aucune chaîne dans cette catégorie.")
                 }
             }
         }
     }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyLarge,
+        color = Glass.palette.contentMuted,
+        modifier = Modifier.padding(8.dp),
+    )
 }
 
 @Composable
@@ -214,37 +282,70 @@ private fun CategoryRow(item: CategoryItem, selected: Boolean, onFocused: (Strin
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(item.count.toString(), style = MaterialTheme.typography.labelMedium, color = p.contentMuted)
+            if (item.count >= 0) {
+                Text(item.count.toString(), style = MaterialTheme.typography.labelMedium, color = p.contentMuted)
+            }
         }
     }
 }
 
 @Composable
-private fun ChannelRow(channel: LiveChannel, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChannelRow(
+    channel: LiveChannel,
+    favorite: Boolean,
+    epg: EpgRepository,
+    now: Long,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val p = Glass.palette
+    val programs by rememberPrograms(epg, channel)
+    val current = programs?.firstOrNull { it.end > now }
+    val next = programs?.firstOrNull { current != null && it.start >= current.end }
     GlassClickable(
         onClick = onClick,
+        onLongClick = onLongClick,
         focusedScale = 1.02f,
         focusedGlow = false,
         modifier = modifier.fillMaxWidth().testTag(ChannelsTags.CHANNEL),
     ) {
         Row(
-            Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            ChannelLogo(channel)
             Text(
                 channel.number?.toString().orEmpty(),
                 style = MaterialTheme.typography.labelLarge,
                 color = p.contentMuted,
-                modifier = Modifier.width(64.dp),
+                modifier = Modifier.width(48.dp),
             )
-            Text(
-                channel.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.Unspecified,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    channel.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.Unspecified,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (current != null) {
+                    NowLine(current, now, Modifier.fillMaxWidth(0.9f))
+                }
+                if (next != null) {
+                    Text(
+                        "Ensuite ${formatTime(next.start)} · ${next.title}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = p.contentMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (favorite) {
+                Text("★", style = MaterialTheme.typography.titleLarge, color = p.accent.color)
+            }
         }
     }
 }

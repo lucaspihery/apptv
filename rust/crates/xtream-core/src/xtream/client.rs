@@ -43,6 +43,26 @@ impl XtreamClient {
         crate::live::xtream_catalog(&categories, &streams)
     }
 
+    /// Prochains programmes d'une chaîne (`get_short_epg`).
+    pub fn short_epg(
+        &self,
+        stream_id: i64,
+        limit: u32,
+        now: i64,
+    ) -> CoreResult<Vec<crate::epg::EpgProgram>> {
+        let id = stream_id.to_string();
+        let limit = limit.clamp(1, crate::epg::MAX_PROGRAMS).to_string();
+        let body = self.fetch(
+            &urls::api_url(
+                &self.creds,
+                Some("get_short_epg"),
+                &[("stream_id", &id), ("limit", &limit)],
+            ),
+            MAX_SMALL_JSON,
+        )?;
+        crate::epg::parse_short_epg(&body, now)
+    }
+
     fn fetch(&self, url: &crate::secret::SensitiveUrl, limit: u64) -> CoreResult<Vec<u8>> {
         let secrets = self.creds.secrets();
         let resp = self.http.get(url, &secrets)?;
