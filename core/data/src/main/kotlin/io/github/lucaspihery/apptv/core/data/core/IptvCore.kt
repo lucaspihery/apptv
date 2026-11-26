@@ -11,6 +11,8 @@ import io.github.lucaspihery.apptv.core.ffi.normalizeServer as ffiNormalizeServe
 import io.github.lucaspihery.apptv.core.ffi.xtreamAuthenticate
 import io.github.lucaspihery.apptv.core.ffi.xtreamLiveCatalog as ffiXtreamLiveCatalog
 import io.github.lucaspihery.apptv.core.ffi.xtreamLiveUrl as ffiXtreamLiveUrl
+import io.github.lucaspihery.apptv.core.ffi.xtreamShortEpg as ffiXtreamShortEpg
+import io.github.lucaspihery.apptv.core.data.live.Program
 import io.github.lucaspihery.apptv.core.data.live.LiveCatalog
 import io.github.lucaspihery.apptv.core.data.live.LiveCategory
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
@@ -45,6 +47,7 @@ interface IptvCore {
     fun xtreamLiveCatalog(server: String, username: String, password: String): CoreResult<LiveCatalog>
     fun xtreamLiveUrl(server: String, username: String, password: String, streamId: Long, ext: String): CoreResult<String>
     fun m3uLiveCatalog(url: String): CoreResult<LiveCatalog>
+    fun xtreamShortEpg(server: String, username: String, password: String, streamId: Long, limit: Int): CoreResult<List<Program>>
 }
 
 @Singleton
@@ -79,6 +82,17 @@ class UniffiIptvCore @Inject constructor() : IptvCore {
         call { ffiXtreamLiveUrl(server, username, password, streamId, ext) }
 
     override fun m3uLiveCatalog(url: String): CoreResult<LiveCatalog> = call { ffiM3uLiveCatalog(url).toLive() }
+
+    override fun xtreamShortEpg(
+        server: String,
+        username: String,
+        password: String,
+        streamId: Long,
+        limit: Int,
+    ): CoreResult<List<Program>> = call {
+        ffiXtreamShortEpg(server, username, password, streamId, limit.toUInt())
+            .map { Program(it.title, it.description, it.start, it.end) }
+    }
 
     private inline fun <T> call(block: () -> T): CoreResult<T> = try {
         CoreResult.Ok(block())

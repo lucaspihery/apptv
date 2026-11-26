@@ -6,6 +6,7 @@
 //! Règle de sécurité : aucun mot de passe ni URL complète dans les logs,
 //! les erreurs ou les sorties `Debug` (voir `secret.rs`).
 
+pub mod epg;
 pub mod error;
 pub mod ffi;
 pub mod http;
