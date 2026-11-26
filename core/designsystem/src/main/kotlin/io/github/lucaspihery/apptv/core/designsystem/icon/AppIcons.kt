@@ -93,6 +93,16 @@ object AppIcons {
         }
     }
 
+    /** Historique : une horloge. */
+    val History: ImageVector by lazy {
+        icon("history") {
+            circle(12f, 12f, 8.5f)
+            moveTo(12f, 7.5f)
+            lineTo(12f, 12f)
+            lineTo(15f, 14f)
+        }
+    }
+
     private fun icon(name: String, block: PathBuilder.() -> Unit): ImageVector =
         ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .path(

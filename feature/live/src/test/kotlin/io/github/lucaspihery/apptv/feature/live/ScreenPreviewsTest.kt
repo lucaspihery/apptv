@@ -14,6 +14,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.lucaspihery.apptv.core.data.live.EpgRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
 import io.github.lucaspihery.apptv.core.data.live.Program
+import io.github.lucaspihery.apptv.core.data.live.StreamQuality
 import io.github.lucaspihery.apptv.core.data.live.VirtualCategories
 import io.github.lucaspihery.apptv.core.designsystem.theme.ApptvTheme
 import org.junit.Rule
@@ -37,8 +38,8 @@ class ScreenPreviewsTest {
     private val slot = now / 1800 * 1800
 
     private val names = listOf(
-        "France Info", "Arte HD", "Sport Live 1", "Cinéma Premier", "Documentaires",
-        "Musique Hits", "Jeunesse", "Météo", "Séries Plus", "Histoire", "Cuisine TV", "Voyage",
+        "France Info", "Arte HD", "Sport Live 1 FHD", "Cinéma Premier 4K", "Documentaires",
+        "Musique Hits", "Jeunesse SD", "Météo", "Séries Plus", "Histoire", "Cuisine TV", "Voyage",
     )
     private val channels = names.mapIndexed { i, n -> LiveChannel(n, i + 1L, null, "c", null, 100L + i, null) }
 
@@ -83,6 +84,13 @@ class ScreenPreviewsTest {
         favorites = setOf(channels[0].key, channels[2].key, channels[4].key),
         query = query,
         hasGuide = true,
+        // Qualités « vues par le lecteur » ; les autres pastilles viennent du nom.
+        qualities = mapOf(
+            channels[0].key to StreamQuality(1080, 50, measured = true),
+            channels[2].key to StreamQuality(1080, 50, measured = true),
+            channels[3].key to StreamQuality(2160, 24, measured = true),
+            channels[4].key to StreamQuality(720, 25, measured = true),
+        ),
     )
 
     private fun shoot(name: String) = compose.onRoot().captureRoboImage(
@@ -111,6 +119,13 @@ class ScreenPreviewsTest {
     }
 
     @Test
+    fun historique() {
+        val recent = listOf(channels[3], channels[0], channels[2], channels[1])
+        compose.setContent { ApptvTheme { ChannelsScreen(state(VirtualCategories.HISTORY, recent), epg, actions) } }
+        shoot("6-historique")
+    }
+
+    @Test
     fun guide_tv() {
         compose.setContent {
             ApptvTheme { GuideScreen(GuideUiState(loading = false, title = "France | TNT", channels = channels), epg) {} }
@@ -132,6 +147,7 @@ class ScreenPreviewsTest {
                             total = 42,
                             buffering = false,
                             programs = epg.cached(channel, 2),
+                            quality = StreamQuality(1080, 50, measured = true),
                         ),
                     )
                 }

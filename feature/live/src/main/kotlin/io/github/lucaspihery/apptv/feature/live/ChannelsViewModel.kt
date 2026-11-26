@@ -13,7 +13,9 @@ import io.github.lucaspihery.apptv.core.data.live.FavoritesRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveCatalog
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
 import io.github.lucaspihery.apptv.core.data.live.LiveRepository
+import io.github.lucaspihery.apptv.core.data.live.StreamQuality
 import io.github.lucaspihery.apptv.core.data.live.VirtualCategories
+import io.github.lucaspihery.apptv.core.data.live.WatchHistoryRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,17 +39,20 @@ data class ChannelsUiState(
     val loading: Boolean = true,
     val error: AccountError? = null,
     val categories: List<CategoryItem> = emptyList(),
-    /** `null` = toutes, [VirtualCategories.FAVORITES], [SEARCH] ou un identifiant de catégorie. */
+    /** `null` = toutes, [VirtualCategories.FAVORITES], [VirtualCategories.HISTORY], [SEARCH] ou un identifiant de catégorie. */
     val selectedCategoryId: String? = null,
     val channels: List<LiveChannel> = emptyList(),
     val favorites: Set<String> = emptySet(),
     val query: String = "",
     /** Le guide n'existe que pour les comptes Xtream. */
     val hasGuide: Boolean = false,
+    /** Qualité mesurée par le lecteur, par clé de chaîne. */
+    val qualities: Map<String, StreamQuality> = emptyMap(),
 ) {
     val selectedCategoryName: String
         get() = when (selectedCategoryId) {
             SEARCH -> "Recherche"
+            VirtualCategories.HISTORY -> HISTORY_NAME
             else -> categories.firstOrNull { it.id == selectedCategoryId }?.name ?: ALL
         }
 }
@@ -55,6 +60,7 @@ data class ChannelsUiState(
 internal const val ALL = "Toutes les chaînes"
 internal const val FAVORITES_NAME = "Mes chaînes"
 internal const val SEARCH = "@search"
+internal const val HISTORY_NAME = "Historique"
 
 /**
  * Fluidité sur une TV modeste avec des dizaines de milliers de chaînes :
@@ -67,6 +73,7 @@ class ChannelsViewModel internal constructor(
     private val live: LiveRepository,
     private val accounts: AccountRepository,
     private val favoritesRepo: FavoritesRepository,
+    private val historyRepo: WatchHistoryRepository,
     val epg: EpgRepository,
     private val compute: CoroutineDispatcher,
     private val settleMs: Long,
@@ -76,8 +83,9 @@ class ChannelsViewModel internal constructor(
         live: LiveRepository,
         accounts: AccountRepository,
         favorites: FavoritesRepository,
+        history: WatchHistoryRepository,
         epg: EpgRepository,
-    ) : this(live, accounts, favorites, epg, Dispatchers.Default, CATEGORY_SETTLE_MS)
+    ) : this(live, accounts, favorites, history, epg, Dispatchers.Default, CATEGORY_SETTLE_MS)
 
     private val _state = MutableStateFlow(ChannelsUiState())
     val state: StateFlow<ChannelsUiState> = _state.asStateFlow()
@@ -89,6 +97,8 @@ class ChannelsViewModel internal constructor(
     private var searchJob: Job? = null
     private var searchResults: List<LiveChannel> = emptyList()
     private var favoriteChannels: List<LiveChannel> = emptyList()
+    private var historyKeys: List<String> = emptyList()
+    private var historyChannels: List<LiveChannel> = emptyList()
 
     /** Dernière chaîne ouverte par catégorie, pour y revenir au retour du lecteur. */
     private val lastPlayed = HashMap<String?, Int>()
@@ -97,6 +107,12 @@ class ChannelsViewModel internal constructor(
         load(refresh = false)
         viewModelScope.launch {
             favoritesRepo.favorites.collect { favs -> onFavoritesChanged(favs) }
+        }
+        viewModelScope.launch {
+            historyRepo.history.collect { keys -> onHistoryChanged(keys) }
+        }
+        viewModelScope.launch {
+            historyRepo.qualities.collect { q -> _state.update { it.copy(qualities = q) } }
         }
     }
 
@@ -113,8 +129,9 @@ class ChannelsViewModel internal constructor(
                     baseItems = items
                     normalizedNames = null
                     favoriteChannels = withContext(compute) { r.value.playlist(VirtualCategories.FAVORITES, _state.value.favorites) }
+                    historyChannels = withContext(compute) { r.value.historyChannels(historyKeys) }
                     _state.update {
-                        val selected = it.selectedCategoryId?.takeIf { id -> id in index || id == SEARCH || id == VirtualCategories.FAVORITES }
+                        val selected = it.selectedCategoryId?.takeIf { id -> id in index || id in VIRTUAL }
                         it.copy(
                             loading = false,
                             hasGuide = hasGuide,
@@ -142,7 +159,7 @@ class ChannelsViewModel internal constructor(
     fun selectCategory(id: String?) {
         pendingSelection?.cancel()
         if (id == _state.value.selectedCategoryId || catalog == null) return
-        if (id != SEARCH && id != VirtualCategories.FAVORITES && id !in byCategory) return
+        if (id !in VIRTUAL && id !in byCategory) return
         _state.update { it.copy(selectedCategoryId = id, channels = channelsFor(id)) }
     }
 
@@ -162,10 +179,15 @@ class ChannelsViewModel internal constructor(
         viewModelScope.launch { favoritesRepo.toggle(channel) }
     }
 
+    fun clearHistory() {
+        viewModelScope.launch { historyRepo.clearHistory() }
+    }
+
     /** Catégorie et position à transmettre au lecteur pour la chaîne [index] de la liste affichée. */
     fun playTarget(index: Int): Pair<String?, Int> {
         val s = _state.value
-        lastPlayed[s.selectedCategoryId] = index
+        // Historique : la chaîne lancée remonte en tête, c'est là qu'on la retrouve au retour.
+        lastPlayed[s.selectedCategoryId] = if (s.selectedCategoryId == VirtualCategories.HISTORY) 0 else index
         if (s.selectedCategoryId != SEARCH) return s.selectedCategoryId to index
         // Recherche : on zappe ensuite dans toutes les chaînes.
         val channel = s.channels.getOrNull(index) ?: return null to 0
@@ -194,9 +216,19 @@ class ChannelsViewModel internal constructor(
         }
     }
 
+    private suspend fun onHistoryChanged(keys: List<String>) {
+        historyKeys = keys
+        val c = catalog
+        historyChannels = if (c == null) emptyList() else withContext(compute) { c.historyChannels(keys) }
+        _state.update {
+            if (it.selectedCategoryId == VirtualCategories.HISTORY) it.copy(channels = historyChannels) else it
+        }
+    }
+
     private fun channelsFor(id: String?): List<LiveChannel> = when (id) {
         SEARCH -> searchResults
         VirtualCategories.FAVORITES -> favoriteChannels
+        VirtualCategories.HISTORY -> historyChannels
         else -> byCategory[id].orEmpty()
     }
 
@@ -220,6 +252,7 @@ class ChannelsViewModel internal constructor(
     internal companion object {
         const val CATEGORY_SETTLE_MS = 250L
         const val MAX_RESULTS = 500
+        private val VIRTUAL = setOf(SEARCH, VirtualCategories.FAVORITES, VirtualCategories.HISTORY)
         private val MARKS = Regex("\\p{Mn}+")
 
         /** Minuscules, sans accents ni ponctuation : « TF1 HD » et « tf1-hd » se trouvent pareil. */

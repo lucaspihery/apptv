@@ -56,6 +56,7 @@ import androidx.tv.material3.Text
 import io.github.lucaspihery.apptv.core.data.account.AccountError
 import io.github.lucaspihery.apptv.core.data.live.EpgRepository
 import io.github.lucaspihery.apptv.core.data.live.LiveChannel
+import io.github.lucaspihery.apptv.core.data.live.StreamQuality
 import io.github.lucaspihery.apptv.core.data.live.VirtualCategories
 import io.github.lucaspihery.apptv.core.designsystem.component.GlassButton
 import io.github.lucaspihery.apptv.core.designsystem.component.GlassClickable
@@ -105,7 +106,8 @@ fun ChannelsRoute(
             },
             toggleFavorite = viewModel::toggleFavorite,
             setQuery = viewModel::setQuery,
-            openGuide = { onOpenGuide(state.selectedCategoryId?.takeIf { it != SEARCH }) },
+            clearHistory = viewModel::clearHistory,
+            openGuide = { onOpenGuide(state.selectedCategoryId?.takeIf { it != SEARCH && it != VirtualCategories.HISTORY }) },
             retry = { viewModel.load(refresh = true) },
             logout = { viewModel.logout(onLoggedOut) },
         ),
@@ -123,6 +125,7 @@ class ChannelsActions(
     val openGuide: () -> Unit,
     val retry: () -> Unit,
     val logout: () -> Unit,
+    val clearHistory: () -> Unit = {},
 )
 
 /** Panneau ouvert depuis les boutons en haut à droite. */
@@ -130,7 +133,7 @@ private enum class Sheet { NONE, ACCOUNT, SETTINGS }
 
 /**
  * Menu principal : nom de l'appli en haut à gauche, Recherche / Paramètres / Compte en haut
- * à droite, petit rail d'icônes à gauche (Direct, Mes chaînes, Guide TV), puis les
+ * à droite, petit rail d'icônes à gauche (Direct, Mes chaînes, Historique, Guide TV), puis les
  * catégories et les chaînes.
  */
 @Composable
@@ -220,7 +223,7 @@ private fun RoundIconButton(
     }
 }
 
-/** Petit rail d'icônes à gauche : Direct, Mes chaînes, Guide TV. */
+/** Petit rail d'icônes à gauche : Direct, Mes chaînes, Historique, Guide TV. */
 @Composable
 private fun SideRail(
     state: ChannelsUiState,
@@ -238,12 +241,17 @@ private fun SideRail(
             verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            RailItem(AppIcons.Live, "Direct", selected = categoryId != SEARCH && categoryId != VirtualCategories.FAVORITES) {
+            val live = categoryId != SEARCH && categoryId != VirtualCategories.FAVORITES && categoryId != VirtualCategories.HISTORY
+            RailItem(AppIcons.Live, "Direct", selected = live) {
                 actions.selectCategory(null)
                 runCatching { channelFocus.requestFocus() }
             }
             RailItem(AppIcons.Favorites, FAVORITES_NAME, selected = categoryId == VirtualCategories.FAVORITES) {
                 actions.selectCategory(VirtualCategories.FAVORITES)
+                runCatching { channelFocus.requestFocus() }
+            }
+            RailItem(AppIcons.History, HISTORY_NAME, selected = categoryId == VirtualCategories.HISTORY) {
+                actions.selectCategory(VirtualCategories.HISTORY)
                 runCatching { channelFocus.requestFocus() }
             }
             if (state.hasGuide) {
@@ -344,7 +352,20 @@ private fun Content(
                             "${channels.size} chaînes",
                             style = MaterialTheme.typography.labelMedium,
                             color = p.contentMuted,
+                            modifier = Modifier.weight(1f),
                         )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    if (categoryId == VirtualCategories.HISTORY && channels.isNotEmpty()) {
+                        GlassClickable(onClick = actions.clearHistory, shape = GlassShapes.pill, focusedGlow = false) {
+                            Text(
+                                "Effacer",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.Unspecified,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                            )
+                        }
                     }
                 }
                 if (categoryId == SEARCH) {
@@ -368,6 +389,7 @@ private fun Content(
                                 ChannelRow(
                                     channel = channel,
                                     favorite = channel.key in state.favorites,
+                                    quality = state.qualities[channel.key],
                                     epg = epg,
                                     now = now,
                                     onClick = { actions.play(index) },
@@ -383,6 +405,9 @@ private fun Content(
                     )
                     categoryId == VirtualCategories.FAVORITES -> Hint(
                         "Aucune chaîne dans « Mes chaînes ». Restez appuyé sur OK sur une chaîne pour l'ajouter.",
+                    )
+                    categoryId == VirtualCategories.HISTORY -> Hint(
+                        "Aucune chaîne regardée pour l'instant. Les chaînes regardées plus de 5 secondes apparaissent ici.",
                     )
                     else -> Hint("Aucune chaîne dans cette catégorie.")
                 }
@@ -483,6 +508,7 @@ private fun CategoryRow(item: CategoryItem, selected: Boolean, onFocused: (Strin
 private fun ChannelRow(
     channel: LiveChannel,
     favorite: Boolean,
+    quality: StreamQuality?,
     epg: EpgRepository,
     now: Long,
     onClick: () -> Unit,
@@ -513,13 +539,19 @@ private fun ChannelRow(
                 modifier = Modifier.width(32.dp),
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    channel.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.Unspecified,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // Qualité vue par le lecteur, sinon celle annoncée par le nom (« FHD », « 4K », « 50 fps »).
+                val shown = quality ?: remember(channel.name) { StreamQuality.fromName(channel.name) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        channel.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.Unspecified,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    QualityBadges(shown)
+                }
                 if (current != null) {
                     NowLine(current, now, Modifier.fillMaxWidth(0.9f))
                 }
