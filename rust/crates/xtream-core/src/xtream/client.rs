@@ -1,4 +1,3 @@
-use std::io::Read;
 use std::sync::Arc;
 
 use super::models::{AccountInfo, RawAuthResponse};
@@ -31,6 +30,19 @@ impl XtreamClient {
         parse_auth(&body, &self.creds.username)
     }
 
+    /// Catégories et chaînes du direct (`get_live_categories` + `get_live_streams`).
+    pub fn live_catalog(&self) -> CoreResult<crate::live::LiveCatalog> {
+        let categories = self.fetch(
+            &urls::api_url(&self.creds, Some("get_live_categories"), &[]),
+            MAX_SMALL_JSON,
+        )?;
+        let streams = self.fetch(
+            &urls::api_url(&self.creds, Some("get_live_streams"), &[]),
+            crate::live::MAX_STREAMS_JSON,
+        )?;
+        crate::live::xtream_catalog(&categories, &streams)
+    }
+
     fn fetch(&self, url: &crate::secret::SensitiveUrl, limit: u64) -> CoreResult<Vec<u8>> {
         let secrets = self.creds.secrets();
         let resp = self.http.get(url, &secrets)?;
@@ -39,14 +51,7 @@ impl XtreamClient {
             401 | 403 => return Err(CoreError::AuthFailed),
             status => return Err(CoreError::Http { status }),
         }
-        let mut buf = Vec::new();
-        resp.body
-            .take(limit)
-            .read_to_end(&mut buf)
-            .map_err(|e| CoreError::Network {
-                message: crate::secret::scrub(&e.to_string(), &secrets),
-            })?;
-        Ok(buf)
+        crate::live::read_limited(resp.body, limit, &secrets)
     }
 }
 
@@ -59,7 +64,7 @@ pub(crate) fn parse_auth(body: &[u8], fallback_username: &str) -> CoreResult<Acc
     }
     let raw: RawAuthResponse =
         serde_json::from_slice(trimmed).map_err(|_| CoreError::InvalidResponse {
-            message: if trimmed.first() == Some(&b'<') {
+            detail: if trimmed.first() == Some(&b'<') {
                 "le serveur a renvoyé une page HTML au lieu de JSON".to_owned()
             } else {
                 "JSON illisible".to_owned()

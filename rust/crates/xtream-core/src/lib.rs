@@ -10,6 +10,7 @@ pub mod error;
 pub mod ffi;
 pub mod http;
 pub mod lenient;
+pub mod live;
 pub mod m3u;
 pub mod secret;
 pub mod xtream;

@@ -11,6 +11,10 @@ import io.github.lucaspihery.apptv.core.data.core.IptvCore
 import io.github.lucaspihery.apptv.core.data.core.PlaylistInfo
 import io.github.lucaspihery.apptv.core.data.core.XtreamAccountInfo
 import io.github.lucaspihery.apptv.core.data.crypto.AesGcmCipher
+import io.github.lucaspihery.apptv.core.data.live.DefaultLiveRepository
+import io.github.lucaspihery.apptv.core.data.live.LiveCatalog
+import io.github.lucaspihery.apptv.core.data.live.LiveCategory
+import io.github.lucaspihery.apptv.core.data.live.LiveChannel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -43,6 +47,18 @@ class DefaultAccountRepositoryTest {
             login.also { calls += "login $server $username" }
         override fun probePlaylist(url: String) = probe.also { calls += "probe" }
         override fun detectXtreamLink(url: String): XtreamLinkCredentials? = null
+
+        var live: CoreResult<LiveCatalog> = CoreResult.Ok(
+            LiveCatalog(
+                categories = listOf(LiveCategory("1", "TNT")),
+                channels = listOf(LiveChannel("TF1", 1, null, "1", null, 101, null)),
+            ),
+        )
+        override fun xtreamLiveCatalog(server: String, username: String, password: String) =
+            live.also { calls += "live $server $username $password" }
+        override fun xtreamLiveUrl(server: String, username: String, password: String, streamId: Long, ext: String) =
+            CoreResult.Ok("$server/live/$username/$password/$streamId.$ext")
+        override fun m3uLiveCatalog(url: String) = live.also { calls += "m3u live" }
     }
 
     private fun TestScope.repo(core: FakeCore = FakeCore()): Pair<DefaultAccountRepository, java.io.File> {
@@ -100,5 +116,30 @@ class DefaultAccountRepositoryTest {
 
         repo.logout()
         assertNull(repo.account.first())
+    }
+
+    @Test
+    fun `catalogue du direct chargé une fois puis gardé en mémoire`() = runTest {
+        val core = FakeCore()
+        val (repo, _) = repo(core)
+        repo.loginXtream("exemple.tv", "alice", "secret")
+        val live = DefaultLiveRepository(repo, core, StandardTestDispatcher(testScheduler))
+        val first = live.catalog()
+        assertTrue(first is CoreResult.Ok)
+        live.catalog()
+        assertEquals(1, core.calls.count { it.startsWith("live") })
+        assertTrue(core.calls.contains("live http://exemple.tv alice secret"))
+        val channel = (first as CoreResult.Ok).value.channels.single()
+        assertEquals("http://exemple.tv/live/alice/secret/101.ts", live.streamUrl(channel))
+        assertFalse(channel.toString().contains("secret"))
+    }
+
+    @Test
+    fun `chaîne M3U lue depuis son URL masquée dans toString`() = runTest {
+        val c = LiveChannel("F2", null, null, null, null, null, "http://h/u/motdepasse/2.ts")
+        assertFalse(c.toString().contains("motdepasse"))
+        val catalog = LiveCatalog(listOf(LiveCategory("a", "A")), listOf(c, c.copy(categoryId = "a")))
+        assertEquals(1, catalog.channelsOf("a").size)
+        assertEquals(2, catalog.channelsOf(null).size)
     }
 }

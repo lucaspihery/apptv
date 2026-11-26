@@ -18,6 +18,8 @@ import io.github.lucaspihery.apptv.core.data.core.UniffiIptvCore
 import io.github.lucaspihery.apptv.core.data.crypto.AesGcmCipher
 import io.github.lucaspihery.apptv.core.data.crypto.KeystoreKeyProvider
 import io.github.lucaspihery.apptv.core.data.crypto.SecretCipher
+import io.github.lucaspihery.apptv.core.data.live.DefaultLiveRepository
+import io.github.lucaspihery.apptv.core.data.live.LiveRepository
 import javax.inject.Singleton
 
 @Module
@@ -25,6 +27,9 @@ import javax.inject.Singleton
 abstract class DataModule {
     @Binds
     abstract fun bindAccountRepository(impl: DefaultAccountRepository): AccountRepository
+
+    @Binds
+    abstract fun bindLiveRepository(impl: DefaultLiveRepository): LiveRepository
 
     @Binds
     abstract fun bindIptvCore(impl: UniffiIptvCore): IptvCore

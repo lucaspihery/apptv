@@ -10,7 +10,7 @@ peu de RAM. TV de référence : TCL 65", MediaTek, Android 11, 1 à 2 Go de RAM.
 
 ```
 rust/                     Cœur Rust (workspace Cargo)
-  crates/xtream-core/     client Xtream, parseur M3U, (XMLTV, cache SQLite : jalons 2 et 4)
+  crates/xtream-core/     client Xtream, parseur M3U, catalogue du direct (live.rs), (XMLTV, cache SQLite : jalons 2 et 4)
   crates/uniffi-bindgen/  générateur des bindings Kotlin
 build-logic/convention/   plugins Gradle de convention + plugin Rust (cargo-ndk, UniFFI)
 app/                      Activity unique, NavHost typé, manifeste TV
@@ -20,6 +20,7 @@ core/data                 comptes, DataStore, chiffrement AES-GCM (Android Keyst
 core/designsystem         thème verre, GlassBackground/GlassPanel, GlassClickable, GlassTextField
 core/testing              MainDispatcherRule, FakeAccountRepository
 feature/onboarding        connexion Xtream / M3U
+feature/live              liste des chaînes (catégories) et lecteur plein écran ExoPlayer
 ```
 
 Dépendances entre modules : `feature:*` → `core:*`. **Seul `core:data` dépend de `core:native`** :
@@ -33,7 +34,8 @@ bibliothèque native).
 - **Lecture vidéo : Media3 ExoPlayer uniquement** (jalon 3). Rust ne lit jamais la vidéo.
 - Rust compilé pour `arm64-v8a`, `armeabi-v7a` (beaucoup de TV sont en 32 bits) et `x86_64`
   (émulateur). Profil release : `opt-level = "s"`, LTO, `panic = "abort"`, strip.
-- minSdk 23, **targetSdk 36** (choix de Lucas, pour pouvoir publier sur Play), compileSdk 36.
+- minSdk 24 (exigé par Navigation 2.10), **targetSdk 36** (choix de Lucas, pour pouvoir publier sur Play),
+  compileSdk 37 (exigé par Compose 1.12).
 - AGP 9 (Kotlin intégré à AGP) ; le plugin Compose est en version Kotlin 2.4.x.
 
 ## Décisions et pièges à respecter

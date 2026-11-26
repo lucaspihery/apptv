@@ -64,7 +64,7 @@ impl HttpClient for UreqHttp {
             }
             Err(ureq::Error::Timeout(_)) => Err(CoreError::Timeout),
             Err(e) => Err(CoreError::Network {
-                message: scrub(&e.to_string(), secrets),
+                detail: scrub(&e.to_string(), secrets),
             }),
         }
     }

@@ -91,7 +91,7 @@ impl Credentials {
 
 fn invalid(message: &str) -> CoreError {
     CoreError::InvalidInput {
-        message: message.to_owned(),
+        detail: message.to_owned(),
     }
 }
 

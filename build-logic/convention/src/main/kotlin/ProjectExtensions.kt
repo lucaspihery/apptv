@@ -11,9 +11,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 internal object Sdk {
-    const val COMPILE = 36
+    const val COMPILE = 37
     const val TARGET = 36
-    const val MIN = 23
+    const val MIN = 24
 }
 
 internal val Project.libs: VersionCatalog

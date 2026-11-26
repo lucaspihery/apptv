@@ -11,13 +11,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import io.github.lucaspihery.apptv.core.designsystem.glass.GlassBackground
+import io.github.lucaspihery.apptv.feature.live.ChannelsRoute
+import io.github.lucaspihery.apptv.feature.live.PlayerRoute
 import io.github.lucaspihery.apptv.feature.onboarding.LoginRoute
 import kotlinx.serialization.Serializable
 
 /** Destinations typées (Navigation Compose + kotlinx.serialization). */
 sealed interface Route {
     @Serializable data object Login : Route
+    /** Liste des chaînes : écran d'arrivée une fois connecté. */
     @Serializable data object Home : Route
+
+    /** Lecture : position [index] dans la liste de la catégorie [categoryId] (null = toutes). */
+    @Serializable data class Player(val categoryId: String?, val index: Int) : Route
 }
 
 @Composable
@@ -37,9 +43,15 @@ fun ApptvNavHost(viewModel: StartViewModel = hiltViewModel()) {
             })
         }
         composable<Route.Home> {
-            HomeScreen(onLoggedOut = {
-                nav.navigate(Route.Login) { popUpTo<Route.Home> { inclusive = true } }
-            })
+            ChannelsRoute(
+                onPlay = { categoryId, index -> nav.navigate(Route.Player(categoryId, index)) },
+                onLoggedOut = {
+                    nav.navigate(Route.Login) { popUpTo<Route.Home> { inclusive = true } }
+                },
+            )
+        }
+        composable<Route.Player> {
+            PlayerRoute()
         }
     }
 }
