@@ -217,6 +217,7 @@ private fun RoundIconButton(
         selected = selected,
         shape = CircleShape,
         focusedGlow = false,
+        quiet = true,
         modifier = modifier.size(size),
     ) {
         Icon(icon, contentDescription = label, modifier = Modifier.size(size * 0.5f).align(Alignment.Center))
@@ -231,11 +232,8 @@ private fun SideRail(
     channelFocus: FocusRequester,
 ) {
     val categoryId = state.selectedCategoryId
-    GlassPanel(
-        Modifier.width(60.dp).fillMaxHeight(),
-        shape = RoundedCornerShape(30.dp),
-        contentPadding = 10.dp,
-    ) {
+    // Icônes posées sur le fond, sans cadre ; seule l'entrée active est marquée.
+    Box(Modifier.width(48.dp).fillMaxHeight()) {
         Column(
             Modifier.fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
@@ -306,7 +304,7 @@ private fun Content(
 
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         SideRail(state, actions, channelFocus)
-        GlassPanel(Modifier.width(250.dp).fillMaxHeight(), shape = GlassShapes.card, contentPadding = 12.dp) {
+        Box(Modifier.width(240.dp).fillMaxHeight()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Catégories",
@@ -332,7 +330,15 @@ private fun Content(
                 }
             }
         }
-        GlassPanel(Modifier.weight(1f).fillMaxHeight(), shape = GlassShapes.card, contentPadding = 12.dp) {
+        // Simple filet entre les catégories et les chaînes, plutôt qu'un cadre autour de chaque colonne.
+        Box(
+            Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .padding(vertical = 8.dp)
+                .background(Color.White.copy(alpha = 0.10f)),
+        )
+        Box(Modifier.weight(1f).fillMaxHeight()) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 2.dp),
@@ -480,6 +486,7 @@ private fun CategoryRow(item: CategoryItem, selected: Boolean, onFocused: (Strin
         selected = selected,
         focusedScale = 1.03f,
         focusedGlow = false,
+        quiet = true,
         modifier = Modifier
             .fillMaxWidth()
             .testTag(ChannelsTags.CATEGORY)
@@ -524,6 +531,7 @@ private fun ChannelRow(
         onLongClick = onLongClick,
         focusedScale = 1.02f,
         focusedGlow = false,
+        quiet = true,
         modifier = modifier.fillMaxWidth().testTag(ChannelsTags.CHANNEL),
     ) {
         Row(
